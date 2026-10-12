@@ -1,0 +1,25 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import ProjectRow from '../../components/ProjectRow.astro';
+import { getCollection } from 'astro:content';
+import { SITE } from '../../site';
+
+const projects = (await getCollection('projects')).sort((a, b) => a.data.order - b.data.order);
+---
+
+<Layout
+  title={`Projects | ${SITE.name}`}
+  description="Placeholder description for the project index. The content lane rewrites it."
+>
+  <header>
+    <p class="kicker">Work</p>
+    <h1 class="page-title">Projects</h1>
+  </header>
+  <ul class="project-list">
+    {
+      projects.map((project, i) => (
+        <ProjectRow project={project} index={i + 1} />
+      ))
+    }
+  </ul>
+</Layout>

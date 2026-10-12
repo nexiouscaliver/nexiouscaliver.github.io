@@ -1,0 +1,19 @@
+{
+  "name": "shahilkadia-site",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "engines": { "node": ">=22.12.0" },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "sweep": "node scripts/sweep.mjs",
+    "seo:check": "node scripts/seo-check.mjs",
+    "ci": "npm run build && npm run sweep && npm run seo:check"
+  },
+  "dependencies": {
+    "astro": "^7.3.5",
+    "@astrojs/sitemap": "^3.7.4"
+  }
+}

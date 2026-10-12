@@ -1,0 +1,20 @@
+---
+interface Props {
+  project: any;
+  index?: number;
+}
+
+const { project, index } = Astro.props;
+const { title, summary, year, stack } = project.data;
+---
+
+<li class="project-row">
+  <a href={`/projects/${project.id}/`}>
+    {index !== undefined && <span class="index" aria-hidden="true">{String(index).padStart(2, '0')}</span>}
+    <div>
+      <h3 class="title">{title}</h3>
+      <p class="summary">{summary}</p>
+    </div>
+    <span class="meta">{year}{stack.length > 0 && ` \u00b7 ${stack[0]}`}</span>
+  </a>
+</li>

@@ -1,0 +1,53 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { SITE } from '../site';
+
+const stack = [
+  'Rust',
+  'TypeScript',
+  'Python',
+  'Swift',
+  'Astro',
+  'PostgreSQL',
+];
+---
+
+<Layout
+  title={`About | ${SITE.name}`}
+  description="Placeholder description for the about page. The content lane rewrites it."
+  ogType="profile"
+>
+  <header>
+    <p class="kicker">About</p>
+    <h1 class="page-title">{SITE.name}</h1>
+  </header>
+
+  <div class="prose">
+    <p class="muted">
+      Placeholder bio: two short paragraphs on who I am, how I work, and what I am looking for.
+      Written by the content lane against the NDA-scrubbed dossier.
+    </p>
+    <p>
+      Placeholder paragraph: one concrete sentence with the texture of real work, no client
+      names, no figures.
+    </p>
+
+    <h2>Tools I reach for</h2>
+    <ul class="chips">
+      {stack.map((item) => <li>{item}</li>)}
+    </ul>
+
+    <h2>Elsewhere</h2>
+    <ul>
+      {
+        SITE.sameAs.map((link) => (
+          <li>
+            <a href={link} rel="me">
+              {new URL(link).hostname.replace('www.', '')}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</Layout>
