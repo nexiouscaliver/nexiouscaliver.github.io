@@ -1,0 +1,189 @@
+---
+import '../styles/global.css';
+import { SITE, href } from '../site';
+
+interface Props {
+  title: string;
+  description: string;
+  ogType?: string;
+  jsonLd?: Record<string, unknown>[];
+}
+
+const { title, description, ogType = 'website', jsonLd = [] } = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site).href;
+const home = new URL(import.meta.env.BASE_URL, Astro.site).href;
+const path = Astro.url.pathname.replace(/\/$/, '') || '/';
+
+const person = {
+  '@context': 'https://schema.org',
+  '@type': 'Person',
+  '@id': `${home}#person`,
+  name: SITE.name,
+  url: home,
+  email: `mailto:${SITE.email}`,
+  jobTitle: SITE.role,
+  sameAs: SITE.sameAs,
+};
+const website = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  '@id': `${home}#website`,
+  name: SITE.name,
+  url: home,
+  publisher: { '@id': `${home}#person` },
+};
+const graph = [person, website, ...jsonLd];
+
+const nav = [
+  { label: 'Projects', path: '/projects/' },
+  { label: 'About', path: '/about/' },
+];
+---
+
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" type="image/svg+xml" href={href('/favicon.svg')} />
+    <link rel="sitemap" href={href('/sitemap-index.xml')} />
+    <meta property="og:type" content={ogType} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:site_name" content={SITE.name} />
+    <meta name="twitter:card" content="summary" />
+    <script is:inline>
+      // Theme before first paint: stored choice wins, else OS preference, else dark.
+      (function () {
+        var stored = null;
+        try {
+          stored = localStorage.getItem('sk-theme');
+        } catch (e) {}
+        var theme =
+          stored === 'light' || stored === 'dark'
+            ? stored
+            : window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches
+              ? 'light'
+              : 'dark';
+        document.documentElement.dataset.theme = theme;
+      })();
+    </script>
+    {graph.map((node) => <script type="application/ld+json" set:html={JSON.stringify(node)} />)}
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <div class="bar">
+        <a class="wordmark" href={href('/')}><strong>&gt;_</strong> {SITE.name}</a>
+        <nav class="site-nav" aria-label="Primary">
+          {
+            nav.map((item) => (
+              <a
+                href={href(item.path)}
+                aria-current={path === item.path.replace(/\/$/, '') ? 'page' : undefined}
+              >
+                {item.label}
+              </a>
+            ))
+          }
+          <button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle color theme">
+            <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="4"></circle>
+              <path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path>
+            </svg>
+            <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path>
+            </svg>
+          </button>
+        </nav>
+      </div>
+    </header>
+    <main id="main">
+      <slot />
+    </main>
+    <footer>
+      <section class="contact-block" aria-label="Contact">
+        <div class="inner">
+          <h2>Contact</h2>
+          <p>Placeholder line: one sentence on the kind of work worth an email. The content lane rewrites this.</p>
+          <div class="email-row">
+            <a class="email-link" href={`mailto:${SITE.email}`}>{SITE.email}</a>
+            <button class="copy-button" type="button" data-copy-email data-email={SITE.email}>
+              <span data-copy-label>Copy email</span>
+            </button>
+          </div>
+        </div>
+      </section>
+      <div class="site-footer">
+        <div class="inner">
+          <span>&copy; {new Date().getFullYear()} {SITE.name}</span>
+          <ul>
+            {
+              SITE.sameAs.map((link) => (
+                <li>
+                  <a href={link} rel="me">
+                    {new URL(link).hostname.replace('www.', '')}
+                  </a>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+      </div>
+    </footer>
+    <script is:inline>
+      // The only page JS: theme toggle and copy-email. Nothing else ships.
+      (function () {
+        document.addEventListener('click', function (event) {
+          var target = event.target instanceof Element ? event.target : null;
+          if (!target) return;
+
+          var toggle = target.closest('[data-theme-toggle]');
+          if (toggle) {
+            var root = document.documentElement;
+            var next = root.dataset.theme === 'dark' ? 'light' : 'dark';
+            root.dataset.theme = next;
+            try {
+              localStorage.setItem('sk-theme', next);
+            } catch (e) {}
+            return;
+          }
+
+          var copy = target.closest('[data-copy-email]');
+          if (copy) {
+            var text = copy.getAttribute('data-email') || '';
+            var label = copy.querySelector('[data-copy-label]');
+            var done = function () {
+              copy.classList.add('copied');
+              if (label) label.textContent = 'Copied';
+              window.setTimeout(function () {
+                copy.classList.remove('copied');
+                if (label) label.textContent = 'Copy email';
+              }, 1600);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(text).then(done, function () {});
+            } else {
+              var scratch = document.createElement('textarea');
+              scratch.value = text;
+              scratch.setAttribute('readonly', '');
+              scratch.style.position = 'absolute';
+              scratch.style.left = '-9999px';
+              document.body.appendChild(scratch);
+              scratch.select();
+              try {
+                document.execCommand('copy');
+              } catch (e) {}
+              document.body.removeChild(scratch);
+              done();
+            }
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>

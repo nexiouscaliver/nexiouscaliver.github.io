@@ -1,0 +1,53 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { SITE } from '../site';
+
+const stack = [
+  'Rust',
+  'TypeScript',
+  'Python',
+  'Swift',
+  'Astro',
+  'PostgreSQL',
+];
+---
+
+<Layout
+  title={`About | ${SITE.name}`}
+  description="Placeholder description for the about page. The content lane rewrites it."
+  ogType="profile"
+>
+  <header>
+    <p class="kicker">About</p>
+    <h1 class="page-title">{SITE.name}</h1>
+  </header>
+
+  <div class="prose">
+    <p>
+      I am a systems engineer who likes problems where correctness is not optional: tools people
+      depend on, pipelines that must not stall, interfaces that have to tell the truth.
+    </p>
+    <p class="muted">
+      This bio is placeholder copy. The content lane replaces it from the verified dossier, along
+      with the tool list below.
+    </p>
+
+    <h2>Tools I reach for</h2>
+    <ul class="chips">
+      {stack.map((item) => <li>{item}</li>)}
+    </ul>
+
+    <h2>Elsewhere</h2>
+    <ul class="link-list">
+      {
+        SITE.sameAs.map((link) => (
+          <li>
+            <a href={link} rel="me">
+              {new URL(link).hostname.replace('www.', '')}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</Layout>

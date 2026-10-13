@@ -1,0 +1,36 @@
+---
+import Layout from '../layouts/Layout.astro';
+import ProjectRow from '../components/ProjectRow.astro';
+import { getCollection } from 'astro:content';
+import { SITE, href } from '../site';
+
+const projects = (await getCollection('projects')).sort((a, b) => a.data.order - b.data.order);
+const selected = projects.slice(0, 3);
+---
+
+<Layout
+  title={`${SITE.name}, ${SITE.role}`}
+  description="Placeholder description: one line on who Shahil is and what this site covers. The content lane rewrites it."
+>
+  <section class="hero">
+    <p class="kicker">{SITE.role}</p>
+    <h1>Systems that hold up when the failure modes matter.</h1>
+    <p class="lede">
+      I design, build, and operate software end to end. The selected work below shows how.
+    </p>
+  </section>
+
+  <section aria-labelledby="selected-work">
+    <div class="section-head">
+      <h2 id="selected-work">Selected work</h2>
+      <a href={href('/projects/')}>All projects</a>
+    </div>
+    <ul class="project-list">
+      {
+        selected.map((project, i) => (
+          <ProjectRow project={project} index={i + 1} />
+        ))
+      }
+    </ul>
+  </section>
+</Layout>

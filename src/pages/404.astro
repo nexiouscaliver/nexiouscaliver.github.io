@@ -1,0 +1,16 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { SITE, href } from '../site';
+---
+
+<Layout
+  title={`Page not found | ${SITE.name}`}
+  description="The page you asked for does not exist."
+>
+  <div class="prose">
+    <p class="kicker">404</p>
+    <h1 class="page-title">Page not found</h1>
+    <p>The address does not match anything here. The archive is one click away.</p>
+    <p><a href={href('/')}>Back to the start</a></p>
+  </div>
+</Layout>
