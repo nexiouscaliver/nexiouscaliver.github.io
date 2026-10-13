@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>og card source</title>
+    <style>
+      /* Tokens mirror src/styles/global.css (dark theme). Keep in sync. */
+      :root {
+        --bg: #121412;
+        --text: #e9e7e0;
+        --text-muted: #a2a69e;
+        --accent: #e0a458;
+        --line: #2a2e2a;
+        --font-serif: 'Charter', 'Bitstream Charter', 'Iowan Old Style', 'Sitka Text', Georgia, serif;
+        --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        width: 1200px;
+        height: 630px;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font-sans);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 64px 84px;
+      }
+      .mark {
+        font-family: var(--font-mono);
+        color: var(--accent);
+        font-size: 30px;
+        letter-spacing: 0.04em;
+      }
+      .main {
+        max-width: 900px;
+      }
+      .name {
+        font-family: var(--font-serif);
+        font-weight: 400;
+        font-size: 104px;
+        line-height: 1.04;
+        letter-spacing: -0.01em;
+        margin: 0;
+      }
+      .role {
+        font-family: var(--font-mono);
+        font-size: 30px;
+        color: var(--accent);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        margin: 28px 0 0;
+      }
+      .foot {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        border-top: 1px solid var(--line);
+        padding-top: 26px;
+        font-family: var(--font-mono);
+        font-size: 26px;
+        color: var(--text-muted);
+      }
+      .foot .domain {
+        color: var(--text);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="mark">&gt;_</div>
+    <div class="main">
+      <h1 class="name">Shahil Kadia</h1>
+      <p class="role">AI System Architect</p>
+    </div>
+    <div class="foot">
+      <span class="domain">shahilkadia.me</span>
+      <span>AI systems that hold up in production</span>
+    </div>
+  </body>
+</html>
