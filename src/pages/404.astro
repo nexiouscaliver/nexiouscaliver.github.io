@@ -1,6 +1,8 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { SITE, href } from '../site';
+import { getSite, href } from '../site';
+
+const SITE = await getSite();
 ---
 
 <Layout

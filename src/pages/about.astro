@@ -1,20 +1,40 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { SITE } from '../site';
+import { getCollection } from 'astro:content';
+import { getSite, href } from '../site';
+
+const SITE = await getSite();
+const experience = (await getCollection('experience')).sort((a, b) => a.data.order - b.data.order);
+const education = (await getCollection('education')).sort((a, b) => a.data.order - b.data.order);
 
 const stack = [
-  'Rust',
-  'TypeScript',
   'Python',
-  'Swift',
-  'Astro',
+  'TypeScript',
+  'Rust',
+  'SQL',
+  'FastAPI',
   'PostgreSQL',
+  'Redis',
+  'AWS ECS Fargate',
+  'Terraform',
+  'GitHub Actions',
+  'vLLM',
+  'pgvector',
+  'Langfuse',
+  'Sentry',
+  'Tauri',
+  'Astro',
 ];
+
+const span = (start: string, end: string | null) => {
+  const from = start.replace('-', '/');
+  return end ? `${from} to ${end.replace('-', '/')}` : `${from} to present`;
+};
 ---
 
 <Layout
   title={`About | ${SITE.name}`}
-  description="Placeholder description for the about page. The content lane rewrites it."
+  description="Shahil Kadia's background: AI System Architect (consultant) at RegenAI since August 2026, AI Developer Intern before that, and a B.Tech in Computer Science from Amity University Mumbai."
   ogType="profile"
 >
   <header>
@@ -24,13 +44,70 @@ const stack = [
 
   <div class="prose">
     <p>
-      I am a systems engineer who likes problems where correctness is not optional: tools people
-      depend on, pipelines that must not stall, interfaces that have to tell the truth.
+      I work at the seam where LLMs meet production software. Since August 2026
+      I have been the AI System Architect (consultant) at RegenAI, working
+      remotely from Surat, India; before that I shipped AI features there as an
+      AI Developer Intern from January 2025. The work spans agent
+      write-integrity, prompt-injection defense, retrieval and embeddings
+      infrastructure, GPU inference operations, and the unglamorous platform
+      half: disaster recovery as code, a first production WAF enforcement flip,
+      and monitoring cost cut by an order of magnitude with zero coverage loss.
     </p>
-    <p class="muted">
-      This bio is placeholder copy. The content lane replaces it from the verified dossier, along
-      with the tool list below.
+    <p>
+      The through-line is making LLMs safe to lean on. That has meant
+      eliminating five verified remote-code-execution chains in AI-generated
+      code, making agent-written arguments structurally unable to become
+      production writes without a human, and proving zero regressions across a
+      41,043-test campaign. On the product side it has meant retrieval stacks
+      for bilingual government document QA, four models co-served on a single
+      GPU host, and a dictation app whose speech never leaves the machine.
     </p>
+
+    <h2>Experience</h2>
+    <ul class="link-list">
+      {
+        experience.map((job) => (
+          <li class="exp-entry">
+            <h3>
+              {job.data.role}, {job.data.org}
+            </h3>
+            <p class="muted">
+              {span(job.data.start, job.data.end)} &middot; {job.data.location}
+            </p>
+            <p>{job.data.summary}</p>
+            <ul>
+              {job.data.highlights.map((line) => (
+                <li>{line}</li>
+              ))}
+            </ul>
+          </li>
+        ))
+      }
+    </ul>
+
+    <h2>Education</h2>
+    <ul class="link-list">
+      {
+        education.map((entry) => (
+          <li class="exp-entry">
+            <h3>
+              {entry.data.credential}, {entry.data.field}
+            </h3>
+            <p class="muted">
+              {entry.data.institution} &middot; {entry.data.start} to {entry.data.end}
+              {entry.data.score && ` \u00b7 ${entry.data.score}`}
+            </p>
+            {entry.data.notes.length > 0 && (
+              <ul>
+                {entry.data.notes.map((note) => (
+                  <li>{note}</li>
+                ))}
+              </ul>
+            )}
+          </li>
+        ))
+      }
+    </ul>
 
     <h2>Tools I reach for</h2>
     <ul class="chips">
@@ -39,8 +116,11 @@ const stack = [
 
     <h2>Elsewhere</h2>
     <ul class="link-list">
+      <li>
+        <a href={href(SITE.resume)}>Resume (PDF)</a>
+      </li>
       {
-        SITE.sameAs.map((link) => (
+        SITE.links.map((link) => (
           <li>
             <a href={link} rel="me">
               {new URL(link).hostname.replace('www.', '')}
