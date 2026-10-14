@@ -1,16 +1,18 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { getCollection, render } from 'astro:content';
-import { SITE } from '../../site';
+import { Image } from 'astro:assets';
+import { getSite } from '../../site';
 
 export async function getStaticPaths() {
-  const projects = await getCollection('projects');
+  const projects = (await getCollection('projects')).filter((project) => !project.data.draft);
   return projects.map((project) => ({ params: { slug: project.id }, props: { project } }));
 }
 
 const { project } = Astro.props;
 const { Content } = await render(project);
-const { title, summary, role, year, status, stack, repo, live } = project.data;
+const { title, summary, role, year, status, stack, repo, live, hero, gallery } = project.data;
+const SITE = await getSite();
 ---
 
 <Layout
@@ -35,7 +37,7 @@ const { title, summary, role, year, status, stack, repo, live } = project.data;
       </div>
       <div>
         <dt>Stack</dt>
-        <dd>{stack.join(', ') || 'Placeholder'}</dd>
+        <dd>{stack.join(', ') || 'Not listed'}</dd>
       </div>
       <div>
         <dt>Links</dt>
@@ -43,13 +45,45 @@ const { title, summary, role, year, status, stack, repo, live } = project.data;
           {repo && <a href={repo}>Repository</a>}
           {repo && live && ' \u00b7 '}
           {live && <a href={live}>Live</a>}
-          {!repo && !live && 'None yet'}
+          {!repo && !live && 'None'}
         </dd>
       </div>
     </dl>
 
+    {
+      hero && (
+        <Image
+          class="project-hero"
+          src={hero}
+          alt={`${title} interface`}
+          widths={[340, 680, 1024]}
+          sizes="(max-width: 640px) 100vw, 680px"
+        />
+      )
+    }
+
     <div class="prose">
       <Content />
     </div>
+
+    {
+      gallery.length > 0 && (
+        <section aria-labelledby="gallery" class="project-gallery">
+          <h2 id="gallery">Screens</h2>
+          <ul>
+            {gallery.map((shot) => (
+              <li>
+                <Image
+                  src={shot}
+                  alt={`${title} screen`}
+                  widths={[340, 680, 1024]}
+                  sizes="(max-width: 640px) 100vw, 680px"
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
   </article>
 </Layout>

@@ -2,21 +2,27 @@
 import Layout from '../layouts/Layout.astro';
 import ProjectRow from '../components/ProjectRow.astro';
 import { getCollection } from 'astro:content';
-import { SITE, href } from '../site';
+import { getSite, href } from '../site';
 
-const projects = (await getCollection('projects')).sort((a, b) => a.data.order - b.data.order);
+const SITE = await getSite();
+const projects = (await getCollection('projects'))
+  .filter((project) => !project.data.draft)
+  .sort((a, b) => a.data.order - b.data.order);
 const selected = projects.slice(0, 3);
 ---
 
 <Layout
   title={`${SITE.name}, ${SITE.role}`}
-  description="Placeholder description: one line on who Shahil is and what this site covers. The content lane rewrites it."
+  description="Shahil Kadia builds AI systems that hold up in production: retrieval, LLM serving, agent pipelines, and the platform underneath them. Selected work, background, and contact."
 >
   <section class="hero">
     <p class="kicker">{SITE.role}</p>
     <h1>Systems that hold up when the failure modes matter.</h1>
     <p class="lede">
-      I design, build, and operate software end to end. The selected work below shows how.
+      I design, build, and operate AI systems end to end: retrieval over
+      pgvector, LLM serving on GPU fleets, agent pipelines, and the platform
+      work that keeps them honest. AI System Architect at RegenAI; before that,
+      an AI Developer Intern there for a year and a half.
     </p>
   </section>
 

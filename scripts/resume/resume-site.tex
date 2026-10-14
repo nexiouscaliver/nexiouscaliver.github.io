@@ -1,0 +1,214 @@
+% Shahil Kadia - Resume (v3 FINAL SHIP: cold-read mustFix/shouldFix pass + cycle-1-5 evaluator worklists)
+%
+% DELIBERATE OVERRIDE RECORD (R7 recording clause, 39-SS5 style, written cycle 5):
+% Cycle 4 cut two protected consultant items to land both role blocks in the 3-6 band:
+%   1. 36-S1 P10 scanner-judgment content (rejected an AI scanner on the data: 3,540 findings,
+%      ~95% false positives, ~2.5% misses, deterministic scanners kept, gaps documented) -
+%      every element dossier-traceable (26-DOSSIER C12 / CICD-17+TOOLING-36). Restoration was
+%      attempted first (42 cycle-4 SS6 item 1) and is space-infeasible: the protected core is
+%      ~120 chars and all six surviving consultant bullets are 36-S1/37-E protected at the
+%      2-line cap, so the fold cannot land without dropping other protected content.
+%   2. 36-S1 P12 clause-led code-editing bullet and its P11 "Co-architected" attribution
+%      marker - the adapter claim left the doc together with its attribution, so no
+%      overclaim remains. The adapter must never be re-mentioned without "Co-architected".
+% The cut stands deliberately. Block counts 6+6 hold.
+% Facts source: /Users/shahil/Personal/resume/research/26-DOSSIER-v2.md (commit-verified content plan, no new claims)
+% Style: research/30-elite-resume-research.md + 31-ats-mechanics.md + 32-ai-tell-analysis.md
+%        + 33-judge-google.md + 34-judge-humanizer.md + 35-judge-ats.md + 36-judge-strengths.md + 37-judge-adversarial.md
+%        + 40-RULEBOOK.md (governs v3 and all later iterations)
+% Build: tectonic resume-v3.tex
+\documentclass[10pt,a4paper]{article}
+
+\usepackage[margin=0.5in]{geometry}
+\usepackage{fontspec}
+% Arial: same Helvetica metrics, and (unlike every macOS Helvetica face, measured 2026-10-12 with
+% pdftotext) no fi/fl/ff ligature glyphs under XeTeX, so the PDF text layer stays pure ASCII for
+% ATS keyword matching (research/31 checklist item A2, and Arial is one of that doc's sanctioned fonts)
+\setmainfont{Arial}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{needspace}
+\usepackage[colorlinks=true, urlcolor=navy, linkcolor=navy,
+  pdftitle={Shahil Kadia - AI System Architect - Resume},
+  pdfauthor={Shahil Kadia},
+  pdfsubject={Resume - AI/LLM Engineer},
+  pdfkeywords={AI Engineer, LLM, RAG, vLLM, multi-agent, FastAPI, Python, TypeScript, Rust, AWS, ECS Fargate, Terraform, WAF, DR, CI/CD, GitLab, pgvector, FinOps, AppSec, WebSockets}]{hyperref}
+
+\definecolor{navy}{HTML}{1F4E78}
+
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\hyphenpenalty=9000
+\exhyphenpenalty=9000
+\sloppy
+\linespread{1.12}
+
+\titleformat{\section}{\bfseries\large\color{navy}}{}{0pt}{}[{\color{navy}\titlerule[0.8pt]}]
+\titlespacing*{\section}{0pt}{8pt}{4pt}
+
+\setlist[itemize]{leftmargin=1.0em, itemsep=3pt, parsep=0pt, topsep=0pt, label=\textbullet}
+
+\newcommand{\tld}{\textasciitilde{}}% plain ASCII tilde, no math mode
+\newcommand{\dates}[1]{\hfill {\bfseries #1}}
+
+\begin{document}
+
+% --- Header ----------------------------------------------------------------------
+\begin{center}
+  {\LARGE\bfseries SHAHIL KADIA}\\[3pt]
+  Surat, India |
+  \href{mailto:shahilkadia@gmail.com}{shahilkadia@gmail.com} |
+  \href{https://linkedin.com/in/shahil-kadia}{linkedin.com/in/shahil-kadia} |
+  \href{https://github.com/nexiouscaliver}{github.com/nexiouscaliver}
+\end{center}
+
+% --- Summary ---------------------------------------------------------------------
+\section*{SUMMARY}
+AI System Architect (Consultant) at a multi-tenant AI-SEO SaaS on AWS ECS Fargate. Since
+2025 I have shipped LLM systems to Gulf government clients and CLEO: RAG (retrieval-augmented
+generation) and a fail-closed channel of AI-opened pull requests. Recent work secures production
+agents, metric series down \textbf{\tld{}94\%}, alarm queries \textbf{\tld{}72x} cheaper.
+
+% --- Experience ------------------------------------------------------------------
+\section*{PROFESSIONAL EXPERIENCE}
+
+{\bfseries RegenAI} (Remote) \dates{Jan 2025 - Present}\\[1pt]
+{\small AI products for Gulf government clients and CLEO, a multi-tenant AI-SEO SaaS (FastAPI, React/TypeScript, multi-region ECS Fargate)}
+\medskip
+
+{\bfseries AI System Architect (Consultant)} \dates{Aug 2026 - Present}
+\begin{itemize}
+  \item Eliminated 5 verified remote code execution (RCE) chains in AI-generated WordPress code via a
+  context-typed \mbox{stdlib-only} escaper at each sink, backed by 541 payloads + fuzzing against a
+  ported PHP parse oracle. In production.
+  \item Made LLM arguments untrusted. Python stack-frame analysis strips auto-apply flags,
+  fails closed on unwalkable stacks. Identity is server-pinned, writes need a
+  human, each run budgeted. 41,043 tests, zero regressions.
+  \item Centralized prompt-injection defense on grammar invariants: regex value-pinning that cut a
+  62.9s ReDoS to 0.009s, unicode-safe fence neutralization, and a working repro of the composition
+  bypass that closed the marker forgery holes.
+  \item Designed disaster recovery (DR) with Multi-AZ, cross-region replica, backups,
+  \mbox{split-brain} fencing on \mbox{forty-five} Terraform resources. Soak: 168/168 hours,
+  zero breaches, 92s lag, recovery time objective (RTO) 10-15 min (drill).
+  \item After classifying \textbf{462,901} requests (\tld{}1.4\% flagged), moved production
+  AWS web application firewall (WAF) from count to block, \mbox{byte-exact} rollback pre-built.
+  \tld{}470 blocked beacons traced to count-mode logging that kept only the first rule.
+  \item Cut CloudWatch series \textbf{\tld{}94\%} (5,679 to \tld{}330) by moving task ids from
+  EMF (embedded metric format) dimensions to properties, so deploys cannot spawn series.
+  Alarm queries retired at \textbf{\tld{}72x} lower cost, no coverage loss.
+\end{itemize}
+
+\medskip
+{\bfseries AI Developer Intern} \dates{Jan 2025 - Jul 2026}
+\begin{itemize}
+  \item Built the RAG knowledge stack for a Gulf government client: pgvector hybrid search,
+  semantic chunking, per-tenant sharded vector tables, and a cross-lingual Arabic-English re-query
+  strategy for bilingual document QA.
+  \item Found the cause of a recurring WebSocket outage: query-string auth JWTs tripped AWS WAF
+  managed rules. Moved authentication into RFC 6455 subprotocol bearer tokens with a
+  backend-first rollout, unblocking WAF block mode.
+  \item Created a GitHub App verification ladder for AI-opened pull requests (draft, verify, then
+  promote or discard, infra vs code faults classified), so a PR reaching production has already
+  built green, proven on a public demo site.
+  \item Operated vLLM FP8 MoE serving at 92k-token context (tool/reasoning parsers, fused-MoE
+  kernels), co-serving four models on one 8x L20 host with per-GPU assignment on Alibaba Cloud (MoE
+  FP8, AWQ, Arabic LLM, embeddings).
+  \item Wrote inference benchmarks and topology documentation, measuring TTFT/ITL (time to
+  first token, inter-token latency) \mbox{P50-P99} with bootstrap intervals and 10,000-request
+  throughput tests. FP8-vs-AWQ calls came from these numbers.
+  \item Routed across 11 model classes (self-hosted GLM via a custom provider) and built a
+  hybrid thinking router whose bilingual complexity classifier decides per request when to think,
+  so paid reasoning only runs on complex queries.
+\end{itemize}
+
+% --- Projects --------------------------------------------------------------------
+% Guards sized to FULL block heights (header plus all bullets) so no project entry ever splits
+% (R39). heading+rule(2) + voxbar hdr(1) + 3x2-line bullets(6) = 9-11 baselines. Whole-block guards below.
+\needspace{13\baselineskip}
+\section*{TECHNICAL PROJECTS}
+
+\needspace{8\baselineskip}{\bfseries voxbar}: privacy-first macOS dictation, Rust/Tauri (open-source fork extended) |
+\href{https://github.com/nexiouscaliver}{github.com/nexiouscaliver}
+\begin{itemize}
+  \item Extended an open-source dictation engine into a product line through v1.6.2,
+  spanning local-LLM post-processing and a LAN TLS phone companion, with 29 verified modules
+  behind release gates.
+  \item Shipped on-device transcript polish: GGUF inference in an isolated worker,
+  grammar-constrained structured outputs (JSON), \mbox{sha256-pinned} models. An exclusive-swap
+  state machine keeps voice model and LLM from sharing RAM.
+  \item Delivered nineteen releases in five days (\tld{}4/day peak), each byte-verified by
+  thirteen gates and a 944-function suite. Largest cycle: 9h41m, forty-nine subagents,
+  \tld{}625M tokens, unattended. Used daily by a small group of early users.
+\end{itemize}
+
+\bigskip
+\needspace{14\baselineskip}{\bfseries OmniForge}: self-hosted MR review and merge automation (Claude Code plugin + MCP) |
+19 releases
+\begin{itemize}
+  \item Designed a 23-tool Model Context Protocol (MCP) server for the merge-request
+  lifecycle (gather, isolate, review, adjudicate, approve).
+  \item Put three review agents with non-overlapping lenses (process, architecture, security) in
+  isolated worktrees behind a fail-closed merge gate: no unpinned approvals, no unresolved
+  threads, approval bound to the checked head commit.
+  \item In production at RegenAI, holding median code-review turnaround at 26 minutes across a
+  7-wave campaign.
+\end{itemize}
+
+\bigskip
+\needspace{8\baselineskip}{\bfseries mission-control}: multi-session agent-program orchestration | 14 releases in 3 weeks
+\begin{itemize}
+  \item Built the controller that runs multi-week agent programs: waves and lanes,
+  build-parallel/enable-serial ordering, parallelism capped by available resources, with agents doing the implementation.
+  \item Made reality checks the default for agent programs: every claim is checked against machine
+  records and live state, and a blocked agent reports the block instead of improvising. Six
+  agent-runtime defects became standing conventions.
+  \item Validated a nightly knowledge-vault consolidation by holdout evaluation (51 of 51,
+  all 16 negatives rejected) before unattended runs. A global lease guard now caps fleets after
+  OOM incidents (peak RSS \tld{}1.5GB to 580MB).
+\end{itemize}
+
+\bigskip
+\needspace{7\baselineskip}{\bfseries AmiScheduler}: university venue-booking platform (HTML/CSS/JavaScript/Flask/PostgreSQL) |
+\href{https://github.com/nexiouscaliver/amity-booking-portal}{github.com/nexiouscaliver/amity-booking-portal}
+\begin{itemize}
+  \item Booking platform for 15 venue halls (35+ faculty daily, 200+ bookings a month) with
+  no downtime and automated approvals.
+  \item Recognized by the Vice Chancellor for outstanding contribution to university
+  infrastructure. Deployed on the university intranet as a core operational application.
+\end{itemize}
+
+{\small \textbf{Open Source:} 5 merged third-party PRs - migrated mem0 examples to the v3 filters API,
+made the Dify db.session explicit, fixed a CAMEL MCPToolkit connection bug, extended the pyWhat
+IPv6 regex to hex, corrected zimfarm worker-dashboard sizing.}
+
+% --- Skills ----------------------------------------------------------------------
+\section*{TECHNICAL SKILLS}
+\begin{itemize}
+  \item \textbf{AI/LLM Engineering:} Multi-agent orchestration, Agno (multi-agent framework),
+  multi-LLM API routing with tool calling (OpenAI, Anthropic, GLM, DeepSeek), pgvector (hybrid and
+  semantic search), vLLM GPU inference ops (L20/H20)
+  \item \textbf{Languages \& Frontend:} Python (2 yrs daily production), TypeScript/JavaScript,
+  Rust (shipped product), SQL, Bash, React / MUI / Redux / Vite, Astro
+  \item \textbf{Backend:} FastAPI (146 route modules), production-scale WebSocket reliability
+  (custom gunicorn worker, subprotocol auth), SQLAlchemy 2 / Alembic, PostgreSQL, MongoDB,
+  Redis/Valkey, Stripe, Auth0
+  \item \textbf{Cloud \& IaC (infrastructure as code):} AWS ECS Fargate (multi-region),
+  event-driven SQS / EventBridge / Lambda, ALB (application load balancing), CloudWatch
+  metrics (EMF) + FinOps, Terraform, GitLab CI/CD, Docker containers
+  \item \textbf{Security \& Observability:} AppSec (SSRF / XSS / RCE),
+  prompt-injection defense, SOC 2 readiness (SAST, dependency scans), Sentry (self-hosted),
+  LLM observability \& tracing (Langfuse), OpenTelemetry / Prometheus
+  \item \textbf{AI-Assisted Engineering:} MCP server authorship, Claude Code plugin/skill
+  authorship, pytest testing at 41k scale
+\end{itemize}
+
+% --- Education -------------------------------------------------------------------
+\section*{EDUCATION \& CERTIFICATIONS}
+\textbf{B.Tech, Computer Science \& Engineering}, Amity University Mumbai \dates{2022 - 2026}\\
+CGPA 9.20/10, First Class with Distinction, all 8 semesters, no failed courses\\[2pt]
+\textbf{Certification:} AWS Academy Graduate, Cloud Developing, Dec 2024\\[2pt]
+\textbf{Early recognition:} GDSC CyberSecurity Lead (50+ students), Smart India Hackathon state
+qualifier
+
+\end{document}

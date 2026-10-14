@@ -2,14 +2,17 @@
 import Layout from '../../layouts/Layout.astro';
 import ProjectRow from '../../components/ProjectRow.astro';
 import { getCollection } from 'astro:content';
-import { SITE } from '../../site';
+import { getSite } from '../../site';
 
-const projects = (await getCollection('projects')).sort((a, b) => a.data.order - b.data.order);
+const SITE = await getSite();
+const projects = (await getCollection('projects'))
+  .filter((project) => !project.data.draft)
+  .sort((a, b) => a.data.order - b.data.order);
 ---
 
 <Layout
   title={`Projects | ${SITE.name}`}
-  description="Placeholder description for the project index. The content lane rewrites it."
+  description="Software by Shahil Kadia: VoxBar, mission-control, OmniForge, AmiScheduler, and open-source contributions to mem0, Dify, CAMEL, pyWhat, and zimfarm."
 >
   <header>
     <p class="kicker">Work</p>
@@ -22,4 +25,15 @@ const projects = (await getCollection('projects')).sort((a, b) => a.data.order -
       ))
     }
   </ul>
+  <div class="prose">
+    <h2>Open source</h2>
+    <p>
+      Five merged pull requests into third-party projects, including <a
+        href="https://github.com/mem0ai/mem0">mem0</a>, <a
+        href="https://github.com/langgenius/dify">Dify</a>, <a
+        href="https://github.com/camel-ai/camel">CAMEL</a>, <a
+        href="https://github.com/bee-san/pyWhat">pyWhat</a>, and <a
+        href="https://github.com/onnela-lab/zimfarm">zimfarm</a>.
+    </p>
+  </div>
 </Layout>
