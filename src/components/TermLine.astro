@@ -1,0 +1,25 @@
+---
+import type { TermLine } from '../data/terminal';
+
+interface Props {
+  line: TermLine;
+}
+
+const { line } = Astro.props;
+const cls = line.c ? `t-line ${line.c}` : 't-line';
+---
+
+{
+  'a' in line ? (
+    <p class={cls}>
+      <a
+        href={line.href}
+        {...(/^https?:/.test(line.href) ? { target: '_blank', rel: 'noopener' } : {})}
+      >
+        {line.a}
+      </a>
+    </p>
+  ) : (
+    <p class={cls}>{line.t === '' ? '\u00a0' : line.t}</p>
+  )
+}
