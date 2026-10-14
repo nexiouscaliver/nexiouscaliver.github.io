@@ -1,0 +1,763 @@
+---
+import Layout from '../layouts/Layout.astro';
+import TermLine from '../components/TermLine.astro';
+import { TERMINAL, type TermCommand, type TermLine } from '../data/terminal';
+import { getSite, href } from '../site';
+
+const SITE = await getSite();
+const SITE_URL = Astro.site ?? new URL('https://shahilkadia.me');
+
+// Link tokens in the data resolve against site settings, so email, resume,
+// and profiles have exactly one home.
+const byHost = (host: string) =>
+  SITE.links.find((link) => new URL(link).hostname.includes(host)) ?? '';
+
+const TOKENS: Record<string, string> = {
+  'site:resume': new URL(SITE.resume, SITE_URL).href,
+  'site:email': `mailto:${SITE.email}?subject=[portfolio]%20`,
+  'site:github': byHost('github.com'),
+  'site:linkedin': byHost('linkedin.com'),
+  'site:projects': new URL('/projects/', SITE_URL).href,
+};
+
+const resolveLine = (line: TermLine): TermLine =>
+  'a' in line ? { ...line, href: TOKENS[line.href] ?? line.href } : line;
+
+const data = {
+  ...TERMINAL,
+  commands: TERMINAL.commands.map((command: TermCommand) => ({
+    ...command,
+    lines: command.lines?.map(resolveLine),
+  })),
+};
+
+const visible = data.commands.filter((c) => !c.hidden);
+const helpRows = visible.map((c) => ({
+  key: `${c.name}${c.args ? ' ' + c.args : ''}`.padEnd(18),
+  summary: c.summary,
+}));
+
+const lineClass = (line: TermLine) => (line.c ? `t-line ${line.c}` : 't-line');
+
+// Serialized for the live terminal; < is escaped so the JSON island can
+// never close its own script tag.
+const dataJson = JSON.stringify(data).replace(/</g, '\\u003c');
+---
+
+<Layout
+  title={`Terminal | ${SITE.name}`}
+  description="A keyboard-first corner of the portfolio. Type about, projects, resume, or contact. Same facts as the rest of the site, minus the mouse."
+  chrome={false}
+  bodyClass="term-root"
+>
+  <div class="term">
+    <a class="term-exit" href={href('/')}>[ back to the site ]</a>
+
+    <!-- Script-off fallback: the same content the commands print, rendered
+         statically. The live terminal hides this and takes over. -->
+    <div id="term-static">
+      <h1 class="t-h1">Terminal</h1>
+      <p class="t-line dim">
+        scripting is off, so this is the same terminal as a plain transcript.
+        the live one, caret and all, needs JavaScript.
+      </p>
+      <pre class="t-banner">{data.banner.join('\n')}</pre>
+      {TERMINAL.intro.map((line) => <TermLine line={line} />)}
+      {
+        visible.map((c) => (
+          <section class="t-block">
+            <p class="t-cmd">
+              <span class="ps1">
+                {TERMINAL.promptUser}@{TERMINAL.promptHost}:<span class="path">~</span>$
+              </span>{' '}
+              {c.name}
+            </p>
+            {c.name === 'help' ? (
+              <>
+                <p class="t-line bright">{data.helpFlavor.header}</p>
+                <p class="t-line">{'\u00a0'}</p>
+                <p class="t-line bright">NAME</p>
+                <p class="t-line">{'     ' + data.helpFlavor.name}</p>
+                <p class="t-line">{'\u00a0'}</p>
+                <p class="t-line bright">COMMANDS</p>
+                {helpRows.map((row) => (
+                  <p class="t-line">
+                    <span class="amber">{'     ' + row.key}</span>
+                    {row.summary}
+                  </p>
+                ))}
+                <p class="t-line">{'\u00a0'}</p>
+                <p class="t-line bright">FILES</p>
+                {data.helpFlavor.files.map((f) => (
+                  <p class="t-line">{'     ' + f}</p>
+                ))}
+                <p class="t-line">{'\u00a0'}</p>
+                <p class="t-line bright">BUGS</p>
+                <p class="t-line">{'     ' + data.helpFlavor.bugs}</p>
+              </>
+            ) : c.action === 'clear' ? (
+              <p class="t-line dim">{'(wipes the screen in the live terminal)'}</p>
+            ) : (
+              c.lines?.map((line) => <TermLine line={line} />)
+            )}
+          </section>
+        ))
+      }
+    </div>
+
+    <div id="term-live" hidden>
+      <div id="out" role="log" aria-live="polite"></div>
+      <div class="pline" id="pline">
+        <span class="ps1" id="ps1"></span><span id="pre"></span><span
+          class="caret"
+          id="caret">&nbsp;</span
+        ><span id="post"></span><span class="ghost" id="ghost"></span>
+      </div>
+    </div>
+
+    <!-- The real input: 1px and invisible, so mobile keyboards and IMEs work
+         while the rendered prompt above shows the caret. -->
+    <input
+      id="kbd"
+      autocomplete="off"
+      autocapitalize="off"
+      autocorrect="off"
+      spellcheck="false"
+      aria-label="Terminal input. Type help for the command list."
+    />
+  </div>
+
+  <script is:inline type="application/json" id="term-data" set:html={dataJson} />
+
+  <script is:inline>
+    (function () {
+      var dataEl = document.getElementById('term-data');
+      var staticEl = document.getElementById('term-static');
+      var liveEl = document.getElementById('term-live');
+      if (!dataEl || !staticEl || !liveEl) return;
+      var T;
+      try {
+        T = JSON.parse(dataEl.textContent || '{}');
+      } catch (e) {
+        return;
+      }
+
+      staticEl.hidden = true;
+      liveEl.hidden = false;
+
+      var commands = T.commands || [];
+      var names = commands
+        .map(function (c) {
+          return c.name;
+        })
+        .sort();
+      var byName = {};
+      commands.forEach(function (c) {
+        byName[c.name] = c;
+      });
+
+      var $out = document.getElementById('out');
+      var $kbd = document.getElementById('kbd');
+      var $ps1 = document.getElementById('ps1');
+      var $pre = document.getElementById('pre');
+      var $post = document.getElementById('post');
+      var $caret = document.getElementById('caret');
+      var $ghost = document.getElementById('ghost');
+      var $pline = document.getElementById('pline');
+      var reduce =
+        window.matchMedia &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      var esc = function (s) {
+        return String(s).replace(/[&<>"]/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+        });
+      };
+      var scrollBottom = function () {
+        $out.scrollTop = $out.scrollHeight;
+      };
+      var print = function (html, cls) {
+        var d = document.createElement('div');
+        if (cls) d.className = cls;
+        d.innerHTML = html || '\u00a0';
+        $out.appendChild(d);
+        scrollBottom();
+        return d;
+      };
+      var printText = function (t, cls) {
+        return print(t === '' ? '\u00a0' : esc(t), cls);
+      };
+      var lineHTML = function (l) {
+        if (l.a !== undefined) {
+          var ext = /^https?:/.test(l.href);
+          return (
+            '<a href="' +
+            esc(l.href) +
+            '"' +
+            (ext ? ' target="_blank" rel="noopener"' : '') +
+            '>' +
+            esc(l.a) +
+            '</a>'
+          );
+        }
+        if (l.c) return '<span class="' + l.c + '">' + esc(l.t) + '</span>';
+        return esc(l.t);
+      };
+      var printLine = function (l) {
+        if (l.a !== undefined) return print(lineHTML(l));
+        if (l.c) return print('<span class="' + l.c + '">' + esc(l.t || '') + '</span>');
+        return printText(l.t || '');
+      };
+      var sleep = function (ms) {
+        return new Promise(function (r) {
+          setTimeout(r, ms);
+        });
+      };
+
+      var ps1HTML = function () {
+        return (
+          esc(T.promptUser) +
+          '@' +
+          esc(T.promptHost) +
+          ':<span class="path">~</span>$'
+        );
+      };
+      var printPromptLine = function (cmd) {
+        print('<span class="ps1">' + ps1HTML() + '</span> ' + esc(cmd));
+      };
+
+      var helpLines = function () {
+        var f = T.helpFlavor;
+        var lines = [
+          { t: f.header, c: 'bright' },
+          { t: '' },
+          { t: 'NAME', c: 'bright' },
+          { t: '     ' + f.name },
+          { t: '' },
+          { t: 'COMMANDS', c: 'bright' },
+        ];
+        commands.forEach(function (c) {
+          if (c.hidden) return;
+          var key = c.name + (c.args ? ' ' + c.args : '');
+          lines.push({
+            raw:
+              '<span class="amber">' +
+              esc(key.padEnd(18)) +
+              '</span>' +
+              esc(c.summary),
+          });
+        });
+        lines.push(
+          { t: '' },
+          { t: 'FILES', c: 'bright' },
+          { t: '     ' + f.files[0] },
+          { t: '     ' + f.files[1] },
+          { t: '' },
+          { t: 'BUGS', c: 'bright' },
+          { t: '     ' + f.bugs }
+        );
+        return lines;
+      };
+
+      var runCommand = function (name) {
+        var c = byName[name];
+        if (!c) return false;
+        if (c.action === 'clear') {
+          $out.innerHTML = '';
+          return true;
+        }
+        if (name === 'help') {
+          helpLines().forEach(function (l) {
+            if (l.raw !== undefined) print(l.raw);
+            else printLine(l);
+          });
+          return true;
+        }
+        (c.lines || []).forEach(printLine);
+        return true;
+      };
+
+      var closest = function (w) {
+        var best = names[0] || '';
+        var bs = 0;
+        for (var i = 0; i < names.length; i++) {
+          var c = names[i];
+          var s = 0;
+          var n = Math.min(w.length, c.length);
+          for (var j = 0; j < n; j++) if (w[j] === c[j]) s++;
+          if (s > bs) {
+            bs = s;
+            best = c;
+          }
+        }
+        return best;
+      };
+
+      /* Prompt rendering: caret sits at the true cursor position of the
+         hidden input; ghost shows the shared completion prefix, dimmed. */
+      var commonPrefix = function (arr) {
+        if (!arr.length) return '';
+        var p = arr[0];
+        for (var i = 0; i < arr.length; i++) {
+          while (!arr[i].startsWith(p)) p = p.slice(0, -1);
+        }
+        return p;
+      };
+      var ghostFor = function (v) {
+        if (v.indexOf(' ') !== -1) return '';
+        var m = names.filter(function (c) {
+          return c.startsWith(v) && c !== v;
+        });
+        if (!m.length) return '';
+        var p = commonPrefix(m);
+        return p.length > v.length ? p.slice(v.length) : '';
+      };
+      var renderPrompt = function () {
+        var v = $kbd.value;
+        var ci = $kbd.selectionStart == null ? v.length : $kbd.selectionStart;
+        $ps1.innerHTML = ps1HTML();
+        $pre.innerHTML = esc(v.slice(0, ci));
+        var at = v.charAt(ci);
+        $caret.textContent = at !== '' ? at : '\u00a0';
+        $post.innerHTML = esc(v.slice(ci + 1));
+        $ghost.textContent = ghostFor(v);
+        scrollBottom();
+      };
+
+      var history = [];
+      var hIndex = 0;
+      var draft = '';
+
+      var flashBell = function () {
+        $pline.classList.remove('bell');
+        void $pline.offsetWidth;
+        $pline.classList.add('bell');
+      };
+
+      var submit = function (raw) {
+        printPromptLine(raw);
+        var t = raw.trim();
+        if (!t) {
+          renderPrompt();
+          return;
+        }
+        history.push(raw);
+        hIndex = history.length;
+        draft = '';
+        var parts = t.split(/\s+/);
+        var cmd = parts[0].toLowerCase();
+        if (!runCommand(cmd)) {
+          if (cmd === '?') {
+            runCommand('help');
+          } else {
+            printText('terminal: command not found: ' + cmd, 'err');
+            printText("did you mean '" + closest(cmd) + "'? (or 'help')", 'dim');
+          }
+        }
+        renderPrompt();
+      };
+
+      var tabComplete = function () {
+        var v = $kbd.value;
+        if (v.indexOf(' ') !== -1) return;
+        var matches = names.filter(function (c) {
+          return c.startsWith(v) && c !== v;
+        });
+        if (!matches.length) {
+          flashBell();
+          return;
+        }
+        if (matches.length === 1) {
+          $kbd.value = matches[0] + ' ';
+        } else {
+          var p = commonPrefix(matches);
+          if (p.length > v.length) $kbd.value = p;
+          else {
+            flashBell();
+            print('<span class="dim">' + esc(matches.join('   ')) + '</span>');
+          }
+        }
+        renderPrompt();
+      };
+
+      $kbd.addEventListener('input', renderPrompt);
+      $kbd.addEventListener('keyup', renderPrompt);
+      $kbd.addEventListener('click', renderPrompt);
+      $kbd.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          submit($kbd.value);
+          $kbd.value = '';
+          renderPrompt();
+          return;
+        }
+        if (e.key === 'Tab') {
+          e.preventDefault();
+          tabComplete();
+          return;
+        }
+        if (e.key === 'l' && e.ctrlKey) {
+          e.preventDefault();
+          $out.innerHTML = '';
+          renderPrompt();
+          return;
+        }
+        if (e.key === 'c' && e.ctrlKey) {
+          e.preventDefault();
+          printPromptLine($kbd.value + '^C');
+          $kbd.value = '';
+          renderPrompt();
+          return;
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          if (hIndex > 0) {
+            if (hIndex === history.length) draft = $kbd.value;
+            hIndex--;
+            $kbd.value = history[hIndex];
+          } else flashBell();
+          caretToEnd();
+          return;
+        }
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          if (hIndex < history.length - 1) {
+            hIndex++;
+            $kbd.value = history[hIndex];
+          } else {
+            hIndex = history.length;
+            $kbd.value = draft;
+          }
+          caretToEnd();
+          return;
+        }
+      });
+      var caretToEnd = function () {
+        requestAnimationFrame(function () {
+          var v = $kbd.value;
+          $kbd.setSelectionRange(v.length, v.length);
+          renderPrompt();
+        });
+      };
+
+      // Any tap focuses the hidden input, which is what raises the keyboard
+      // on mobile. The exit link still wins its own click.
+      document.addEventListener('pointerdown', function () {
+        setTimeout(function () {
+          $kbd.focus({ preventScroll: true });
+        }, 0);
+      });
+
+      var typeLine = async function (text, cls, cps) {
+        var d = document.createElement('div');
+        if (cls) d.className = cls;
+        $out.appendChild(d);
+        for (var i = 0; i < text.length; i++) {
+          d.textContent = text.slice(0, i + 1);
+          if (i % 3 === 0) scrollBottom();
+          await sleep(cps);
+        }
+        await sleep(60);
+      };
+
+      var boot = async function () {
+        $ps1.innerHTML = ps1HTML();
+        if (reduce) {
+          printText(
+            'Last login: ' + new Date().toUTCString() + ' on ttys001',
+            'dim'
+          );
+          printBoot();
+          renderPrompt();
+          return;
+        }
+        await typeLine(
+          'Last login: ' + new Date().toUTCString() + ' on ttys001',
+          'dim',
+          3
+        );
+        await sleep(120);
+        for (var i = 0; i < (T.boot || []).length; i++) {
+          var b = T.boot[i];
+          await typeLine(b.t, b.c, 2);
+        }
+        printBoot();
+        await sleep(80);
+        (T.intro || []).forEach(printLine);
+        renderPrompt();
+      };
+      var printBoot = function () {
+        var pre = document.createElement('pre');
+        pre.className = 't-banner';
+        pre.textContent = (T.banner || []).join('\n');
+        $out.appendChild(pre);
+        scrollBottom();
+      };
+
+      $kbd.focus({ preventScroll: true });
+      boot();
+    })();
+  </script>
+</Layout>
+
+<style is:global>
+  /* /terminal: a fixed phosphor palette that ignores the site theme. All
+     rules live under body.term-root so nothing leaks to other pages. */
+  body.term-root {
+    background: #050705;
+    color: #9dffb0;
+  }
+
+  body.term-root main {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* CRT scanlines and vignette, purely decorative overlays. */
+  body.term-root::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0) 0px,
+      rgba(0, 0, 0, 0) 2px,
+      rgba(0, 0, 0, 0.28) 2px,
+      rgba(0, 0, 0, 0.28) 3px
+    );
+  }
+
+  body.term-root::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 51;
+    pointer-events: none;
+    background: radial-gradient(
+      ellipse at center,
+      rgba(0, 0, 0, 0) 55%,
+      rgba(0, 0, 0, 0.45) 100%
+    );
+  }
+
+  .term {
+    position: relative;
+    height: 100vh;
+    height: 100svh;
+    display: flex;
+    flex-direction: column;
+    max-width: 56.25rem;
+    margin: 0 auto;
+    padding: 1rem 1.25rem 1.75rem;
+    font-family: var(--font-mono);
+    font-size: 15px;
+    line-height: 1.5;
+    text-shadow: 0 0 7px rgba(77, 255, 122, 0.18);
+  }
+
+  .term .dim {
+    color: #3f6b4a;
+  }
+
+  .term .bright {
+    color: #4dff7a;
+  }
+
+  .term .amber,
+  .term a {
+    color: #ffb454;
+  }
+
+  .term .err {
+    color: #ff6b6b;
+  }
+
+  .term .ok {
+    color: #4dff7a;
+  }
+
+  .term a {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  #term-static {
+    flex: 1;
+    min-height: 0;
+    /* Top clearance so the fixed exit link can never overprint content. */
+    padding-top: 2rem;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #1d3a26 transparent;
+  }
+
+  #term-live {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #term-live[hidden] {
+    display: none;
+  }
+
+  #out {
+    flex: 1;
+    min-height: 0;
+    /* Top clearance so the fixed exit link can never overprint content. */
+    padding-top: 2rem;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    scrollbar-width: thin;
+    scrollbar-color: #1d3a26 transparent;
+  }
+
+  #out::-webkit-scrollbar,
+  #term-static::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  #out::-webkit-scrollbar-thumb,
+  #term-static::-webkit-scrollbar-thumb {
+    background: #1d3a26;
+  }
+
+  .t-h1 {
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #4dff7a;
+    letter-spacing: 0.04em;
+    margin: 0 0 0.75rem;
+  }
+
+  .t-line {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .t-banner {
+    margin: 0;
+    font-family: inherit;
+    color: #4dff7a;
+    white-space: pre;
+    overflow-x: auto;
+  }
+
+  .t-block {
+    margin-top: 1.25rem;
+  }
+
+  .t-cmd {
+    margin: 0 0 0.25rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .ps1 {
+    color: #4dff7a;
+    font-weight: 600;
+  }
+
+  .ps1 .path {
+    color: #ffb454;
+    font-weight: 400;
+  }
+
+  .pline {
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .caret {
+    background: #4dff7a;
+    color: rgba(4, 16, 7, 0.5);
+    animation: term-blink 1.06s step-end infinite;
+  }
+
+  @keyframes term-blink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0;
+    }
+  }
+
+  .ghost {
+    color: #4a5a4e;
+  }
+
+  @keyframes term-bell {
+    0% {
+      background: rgba(255, 180, 84, 0.25);
+    }
+    100% {
+      background: transparent;
+    }
+  }
+
+  .bell {
+    animation: term-bell 0.18s;
+  }
+
+  a.term-exit {
+    position: fixed;
+    top: 0.75rem;
+    right: 1rem;
+    z-index: 60;
+    font-size: 0.8em;
+    color: #3f6b4a;
+    text-decoration: none;
+  }
+
+  a.term-exit:hover {
+    color: #4dff7a;
+    text-decoration: underline;
+  }
+
+  /* The real input: invisible, 1px, so caret and text render in the prompt
+     line above while mobile keyboards and IMEs have something to attach to. */
+  #kbd {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    border: none;
+    padding: 0;
+    background: transparent;
+    color: transparent;
+    caret-color: transparent;
+  }
+
+  @media (max-width: 480px) {
+    .term {
+      font-size: 12.5px;
+      padding: 0.75rem 0.75rem 1.25rem;
+    }
+
+    a.term-exit {
+      top: 0.5rem;
+      right: 0.75rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .caret {
+      animation: none;
+    }
+
+    .bell {
+      animation: none;
+    }
+  }
+</style>

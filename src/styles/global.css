@@ -267,6 +267,25 @@ main > * + * {
   margin: var(--space-m) 0 0;
 }
 
+/* Terminal teaser under the hero lede. */
+.hero-terminal {
+  margin: var(--space-m) 0 0;
+}
+
+.hero-terminal a {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.hero-terminal a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
 /* ---------------------------------------------------------------------------
    Section headers.
 --------------------------------------------------------------------------- */
@@ -617,7 +636,7 @@ main > * + * {
   }
 
   .site-nav {
-    gap: var(--space-s);
+    gap: var(--space-2xs);
   }
 }
 

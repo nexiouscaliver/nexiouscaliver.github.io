@@ -7,9 +7,20 @@ interface Props {
   description: string;
   ogType?: string;
   jsonLd?: Record<string, unknown>[];
+  /** false renders the bare shell (head + main only) for full-bleed pages. */
+  chrome?: boolean;
+  /** Extra class for the body element, for page-scoped global styles. */
+  bodyClass?: string;
 }
 
-const { title, description, ogType = 'website', jsonLd = [] } = Astro.props;
+const {
+  title,
+  description,
+  ogType = 'website',
+  jsonLd = [],
+  chrome = true,
+  bodyClass = '',
+} = Astro.props;
 const SITE = await getSite();
 const canonical = new URL(Astro.url.pathname, Astro.site).href;
 const home = new URL(import.meta.env.BASE_URL, Astro.site).href;
@@ -43,6 +54,7 @@ const graph = [person, website, ...jsonLd];
 const nav = [
   { label: 'Projects', path: '/projects/' },
   { label: 'About', path: '/about/' },
+  { label: 'Terminal', path: '/terminal/' },
 ];
 
 const linkLabel = (url: string) => {
@@ -102,9 +114,11 @@ const linkLabel = (url: string) => {
     </script>
     {graph.map((node) => <script type="application/ld+json" set:html={JSON.stringify(node)} />)}
   </head>
-  <body>
+  <body class={bodyClass || undefined}>
     <a class="skip-link" href="#main">Skip to content</a>
-    <header class="site-header">
+    {
+      chrome && (
+        <header class="site-header">
       <div class="bar">
         <a class="wordmark" href={href('/')}><strong>&gt;_</strong> {SITE.name}</a>
         <nav class="site-nav" aria-label="Primary">
@@ -129,12 +143,16 @@ const linkLabel = (url: string) => {
           </button>
         </nav>
       </div>
-    </header>
+      </header>
+      )
+    }
     <main id="main">
       <slot />
     </main>
-    <footer>
-      <section class="contact-block" aria-label="Contact">
+    {
+      chrome && (
+        <footer>
+          <section class="contact-block" aria-label="Contact">
         <div class="inner">
           <h2>Contact</h2>
           <p>
@@ -180,9 +198,14 @@ const linkLabel = (url: string) => {
           </ul>
         </div>
       </div>
-    </footer>
-    <script is:inline>
-      // The only page JS: theme toggle and copy-email. Nothing else ships.
+      </footer>
+      )
+    }
+    {
+      chrome && (
+        <script is:inline>
+      // Site chrome JS: theme toggle and copy-email. Pages may add their
+      // own scoped scripts; this one stays out of their way.
       (function () {
         document.addEventListener('click', function (event) {
           var target = event.target instanceof Element ? event.target : null;
@@ -229,7 +252,9 @@ const linkLabel = (url: string) => {
             }
           }
         });
-      })();
-    </script>
+        })();
+        </script>
+      )
+    }
   </body>
 </html>
