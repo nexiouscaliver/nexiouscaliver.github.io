@@ -10,7 +10,10 @@
     "preview": "astro preview",
     "sweep": "node scripts/sweep.mjs",
     "seo:check": "node scripts/seo-check.mjs",
-    "ci": "npm run build && npm run sweep && npm run seo:check"
+    "weight": "node scripts/weight-check.mjs",
+    "net:check": "node scripts/net-check.mjs",
+    "trail:check": "node scripts/trail-check.mjs",
+    "ci": "npm run build && npm run sweep && npm run seo:check && npm run weight && npm run net:check && npm run trail:check"
   },
   "dependencies": {
     "astro": "^7.3.5",

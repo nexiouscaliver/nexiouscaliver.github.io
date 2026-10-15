@@ -41,7 +41,7 @@ for (const file of files) {
 
   lines.forEach((line, i) => {
     if (line.includes('\u2014')) errors.push(`${page}:${i + 1}: em dash (U+2014) in shipped text`);
-    if (line.includes('\u2013')) warnings.push(`${page}:${i + 1}: en dash (U+2013), prefer a hyphen or comma`);
+    if (line.includes('\u2013')) errors.push(`${page}:${i + 1}: en dash (U+2013) in shipped text`);
     const lower = line.toLowerCase();
     for (const phrase of PHRASES) {
       if (lower.includes(phrase)) warnings.push(`${page}:${i + 1}: AI-voice phrase "${phrase}"`);

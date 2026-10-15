@@ -113,6 +113,9 @@ const linkLabel = (url: string) => {
       })();
     </script>
     {graph.map((node) => <script type="application/ld+json" set:html={JSON.stringify(node)} />)}
+    {/* Opt-in head slot: pages that need extra head tags (e.g. /terminal's
+        CSP meta) supply them; every other page renders it as nothing. */}
+    <slot name="head" />
   </head>
   <body class={bodyClass || undefined}>
     <a class="skip-link" href="#main">Skip to content</a>
