@@ -905,7 +905,10 @@ boot();
     flex-direction: column;
     max-width: 56.25rem;
     margin: 0 auto;
-    padding: 1rem 1.25rem 1.75rem;
+    /* No bottom padding: the script-off transcript must meet the frame edge
+       so its scroll fold never slices a glyph above dead space. The live
+       layout carries its own bottom padding below the prompt line. */
+    padding: 1rem 1.25rem 0;
     font-family: var(--font-mono);
     font-size: 15px;
     line-height: 1.5;
@@ -943,6 +946,9 @@ boot();
     min-height: 0;
     /* Top clearance so the fixed exit link starts clear of content. */
     padding-top: 2.75rem;
+    /* Bottom comfort lives inside the scroller (it scrolls with content)
+       so the fold itself sits on the frame edge, never above dead space. */
+    padding-bottom: 0.75rem;
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: #1d3a26 transparent;
@@ -953,6 +959,8 @@ boot();
     min-height: 0;
     display: flex;
     flex-direction: column;
+    /* The prompt line keeps its clearance above the frame edge. */
+    padding-bottom: 1.75rem;
   }
 
   #term-live[hidden] {
@@ -1100,7 +1108,15 @@ boot();
   @media (max-width: 480px) {
     .term {
       font-size: 12.5px;
-      padding: 0.75rem 0.75rem 1.25rem;
+      padding: 0.75rem 0.75rem 0;
+    }
+
+    #term-live {
+      padding-bottom: 1.25rem;
+    }
+
+    #term-static {
+      padding-bottom: 0.75rem;
     }
 
     a.term-exit {
