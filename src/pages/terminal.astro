@@ -1,11 +1,23 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import TermLine from '../components/TermLine.astro';
-import { TERMINAL, type TermCommand, type TermLine } from '../data/terminal';
+import {
+  TERMINAL,
+  FILES,
+  type TermCommand,
+  type TermFile,
+  type TermLine,
+} from '../data/terminal';
+import { dump16 } from '../data/term-format';
+import { createHash } from 'node:crypto';
+import { statSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { getSite, href } from '../site';
+import pkg from '../../package.json';
 
 const SITE = await getSite();
 const SITE_URL = Astro.site ?? new URL('https://shahilkadia.me');
+const PKG_VERSION: string = (pkg as { version?: string }).version ?? '0.1.0';
 
 // Link tokens in the data resolve against site settings, so email, resume,
 // and profiles have exactly one home.
@@ -23,33 +35,178 @@ const TOKENS: Record<string, string> = {
 const resolveLine = (line: TermLine): TermLine =>
   'a' in line ? { ...line, href: TOKENS[line.href] ?? line.href } : line;
 
-const data = {
-  ...TERMINAL,
-  commands: TERMINAL.commands.map((command: TermCommand) => ({
-    ...command,
-    lines: command.lines?.map(resolveLine),
-  })),
-};
+const serializeLine = (line: TermLine): TermLine | string =>
+  'a' in line || line.c ? resolveLine(line) : line.t;
 
-const visible = data.commands.filter((c) => !c.hidden);
-const helpRows = visible.map((c) => ({
-  key: `${c.name}${c.args ? ' ' + c.args : ''}`.padEnd(18),
-  summary: c.summary,
+const CSP =
+  "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' 'self'; " +
+  "connect-src 'none'; img-src 'none'; form-action 'none'; base-uri 'none'";
+
+let RESUME_BYTES = 0;
+try {
+  RESUME_BYTES = statSync(
+    resolve(process.cwd(), 'public/Shahil-Kadia-Resume.pdf')
+  ).size;
+} catch {}
+
+// Files with link tokens resolved once, for both the island and the
+// script-off transcript.
+const filesResolved: TermFile[] = FILES.map((f) => ({
+  ...f,
+  size: f.path === 'resume.pdf' ? RESUME_BYTES : f.size,
+  lines: f.lines?.map(resolveLine),
+}));
+// The island ships the same files with plain lines as bare strings.
+const filesIsland = FILES.map((f) => ({
+  ...f,
+  size: f.path === 'resume.pdf' ? RESUME_BYTES : f.size,
+  lines: f.lines?.map(serializeLine),
 }));
 
-const lineClass = (line: TermLine) => (line.c ? `t-line ${line.c}` : 't-line');
+// Island serialization: representative lines, examples, and flags stay in
+// the uncounted static HTML for visible engine commands; hidden entries
+// keep their refusal lines, as sudo ships today. The reward travels only
+// as its base64 wrapper inside the reward.gpg file entry.
+const islandCommands = TERMINAL.commands.map((c: TermCommand) => {
+  const e: Record<string, unknown> = { name: c.name };
+  if (c.action && c.action !== c.name) e.action = c.action;
+  if (c.file) e.file = c.file;
+  if (c.hidden) e.hidden = true;
+  if (!c.hidden) {
+    if (c.args) e.args = c.args;
+    if (c.summary) e.summary = c.summary;
+  }
+  if ((!c.action || c.hidden) && c.lines) e.lines = c.lines.map(serializeLine);
+  return e;
+});
+
+const data = {
+  promptUser: TERMINAL.promptUser,
+  promptHost: TERMINAL.promptHost,
+  version: PKG_VERSION,
+  banner: TERMINAL.banner,
+  boot: TERMINAL.boot,
+  intro: TERMINAL.intro,
+  helpFlavor: TERMINAL.helpFlavor,
+  files: filesIsland,
+  commands: islandCommands,
+};
 
 // Serialized for the live terminal; < is escaped so the JSON island can
 // never close its own script tag.
 const dataJson = JSON.stringify(data).replace(/</g, '\\u003c');
+
+// ---- script-off transcript ---------------------------------------------
+
+const visible = TERMINAL.commands.filter((c) => !c.hidden);
+const fileByPath = new Map(filesResolved.map((f) => [f.path, f]));
+const keys = visible.map((c) => c.name + (c.args ? ' ' + c.args : ''));
+const pad = Math.max(18, Math.max(...keys.map((k) => k.length)) + 2);
+const helpRows = visible.map((c, i) => ({
+  key: keys[i].padEnd(pad),
+  summary: c.summary,
+}));
+
+// Generated static content, never hand-typed: the xxd and sha256 blocks
+// come from term-format + node:crypto, the rest derive from the same data
+// the engine reads, so the transcript cannot drift from the live terminal.
+const rot13s = (s: string) =>
+  s.replace(/[A-Za-z]/g, (ch) => {
+    const b = ch <= 'Z' ? 65 : 97;
+    return String.fromCharCode((ch.charCodeAt(0) - b + 13) % 26 + b);
+  });
+const b64visitor = Buffer.from('visitor', 'utf8').toString('base64');
+const xxdVisitor = dump16(new TextEncoder().encode('visitor')).map(
+  (t) => ({ t }) as TermLine
+);
+const shaVisitor = createHash('sha256')
+  .update('visitor', 'utf8')
+  .digest('hex')
+  .slice(0, 12);
+
+const contentText = (f?: TermFile) =>
+  (f?.lines ?? []).map((l) => ('a' in l ? l.a : l.t)).join('\n');
+const aboutFile = fileByPath.get('about.md');
+const aboutText = contentText(aboutFile);
+const wcAbout = `${aboutFile?.lines?.length ?? 0} ${
+  aboutText.split(/\s+/).filter(Boolean).length
+} ${Buffer.byteLength(aboutText, 'utf8') + 1} about.md`;
+const contactLines = fileByPath.get('contact.txt')?.lines ?? [];
+
+const dirSet = new Set<string>();
+FILES.forEach((f) => {
+  const i = f.path.lastIndexOf('/');
+  if (i >= 0) dirSet.add(f.path.slice(0, i));
+});
+const hesc = (s: string) =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const lsHtml = [...new Set(FILES.map((f) => f.path.split('/')[0]))]
+  .sort()
+  .filter((n) => !n.startsWith('.'))
+  .map((n) => {
+    const d = dirSet.has(n);
+    const cls = d ? 'bright' : n === 'resume.pdf' ? 'amber' : '';
+    const lab = hesc(n) + (d ? '/' : '');
+    return cls ? `<span class="${cls}">${lab}</span>` : lab;
+  })
+  .join('  ');
+
+const manFor = (name: string): TermLine[] => {
+  const c = TERMINAL.commands.find((x) => x.name === name);
+  if (!c) return [];
+  const u = name.toUpperCase() + '(1)';
+  const head =
+    u + ' '.repeat(Math.max(2, 30 - u.length)) +
+    'Shahil Kadia' + ' '.repeat(Math.max(2, 30 - 12)) + u;
+  return [
+    { t: head, c: 'bright' },
+    { t: '' },
+    { t: 'NAME', c: 'bright' },
+    { t: '     ' + c.name + ' - ' + c.summary },
+    { t: '' },
+    { t: 'SYNOPSIS', c: 'bright' },
+    { t: '     ' + c.name + (c.args ? ' ' + c.args : '') },
+    { t: '' },
+    { t: 'DESCRIPTION', c: 'bright' },
+    { t: '     ' + c.summary },
+    { t: '' },
+    { t: 'BUGS', c: 'bright' },
+    { t: '     ' + TERMINAL.helpFlavor.bugs },
+  ];
+};
+
+const GENERATED: Record<string, TermLine[]> = {
+  man: manFor('ls'),
+  base64: [{ t: b64visitor }],
+  rot13: [
+    { t: rot13s('visitor') },
+    { t: 'rot13 is its own inverse, so the same command decodes this', c: 'dim' },
+  ],
+  xxd: xxdVisitor,
+  sha256: [{ t: 'SHA2-256 (visitor) = ' + shaVisitor }],
+  wc: [{ t: wcAbout }],
+  head: contactLines.slice(0, 3),
+  echo: [{ t: 'visitor' }],
+  whoami: [{ t: 'visitor' }],
+  pwd: [{ t: '/home/visitor', c: 'dim' }],
+};
+
+const staticLines = (c: TermCommand): TermLine[] =>
+  GENERATED[c.name] ??
+  (c.action === 'cat' && (c.file ?? c.example)
+    ? (fileByPath.get(c.file ?? c.example)?.lines ?? [])
+    : (c.lines ?? []));
 ---
 
 <Layout
   title={`Terminal | ${SITE.name}`}
-  description="A keyboard-first corner of the portfolio. Type about, projects, resume, or contact. Same facts as the rest of the site, minus the mouse."
+  description="A keyboard-first corner of the portfolio. A read-only home you can cat, cd, and look around, plus one locked drawer. Same facts as the rest of the site, minus the mouse."
   chrome={false}
   bodyClass="term-root"
 >
+  <Fragment slot="head">
+    <meta http-equiv="Content-Security-Policy" content={CSP} />
+  </Fragment>
   <div class="term">
     <a class="term-exit" href={href('/')}>[ back to the site ]</a>
 
@@ -61,7 +218,7 @@ const dataJson = JSON.stringify(data).replace(/</g, '\\u003c');
         scripting is off, so this is the same terminal as a plain transcript.
         the live one, caret and all, needs JavaScript.
       </p>
-      <pre class="t-banner">{data.banner.join('\n')}</pre>
+      <pre class="t-banner">{TERMINAL.banner.join('\n')}</pre>
       {TERMINAL.intro.map((line) => <TermLine line={line} />)}
       {
         visible.map((c) => (
@@ -70,14 +227,14 @@ const dataJson = JSON.stringify(data).replace(/</g, '\\u003c');
               <span class="ps1">
                 {TERMINAL.promptUser}@{TERMINAL.promptHost}:<span class="path">~</span>$
               </span>{' '}
-              {c.name}
+              {c.name}{c.example ? ` ${c.example}` : ''}
             </p>
             {c.name === 'help' ? (
               <>
-                <p class="t-line bright">{data.helpFlavor.header}</p>
+                <p class="t-line bright">{TERMINAL.helpFlavor.header}</p>
                 <p class="t-line">{'\u00a0'}</p>
                 <p class="t-line bright">NAME</p>
-                <p class="t-line">{'     ' + data.helpFlavor.name}</p>
+                <p class="t-line">{'     ' + TERMINAL.helpFlavor.name}</p>
                 <p class="t-line">{'\u00a0'}</p>
                 <p class="t-line bright">COMMANDS</p>
                 {helpRows.map((row) => (
@@ -88,17 +245,19 @@ const dataJson = JSON.stringify(data).replace(/</g, '\\u003c');
                 ))}
                 <p class="t-line">{'\u00a0'}</p>
                 <p class="t-line bright">FILES</p>
-                {data.helpFlavor.files.map((f) => (
+                {TERMINAL.helpFlavor.files.map((f) => (
                   <p class="t-line">{'     ' + f}</p>
                 ))}
                 <p class="t-line">{'\u00a0'}</p>
                 <p class="t-line bright">BUGS</p>
-                <p class="t-line">{'     ' + data.helpFlavor.bugs}</p>
+                <p class="t-line">{'     ' + TERMINAL.helpFlavor.bugs}</p>
               </>
             ) : c.action === 'clear' ? (
               <p class="t-line dim">{'(wipes the screen in the live terminal)'}</p>
+            ) : c.name === 'ls' ? (
+              <p class="t-line" set:html={lsHtml} />
             ) : (
-              c.lines?.map((line) => <TermLine line={line} />)
+              staticLines(c).map((line) => <TermLine line={line} />)
             )}
           </section>
         ))
@@ -130,379 +289,574 @@ const dataJson = JSON.stringify(data).replace(/</g, '\\u003c');
   <script is:inline type="application/json" id="term-data" set:html={dataJson} />
 
   <script is:inline>
-    (function () {
-      var dataEl = document.getElementById('term-data');
-      var staticEl = document.getElementById('term-static');
-      var liveEl = document.getElementById('term-live');
-      if (!dataEl || !staticEl || !liveEl) return;
-      var T;
-      try {
-        T = JSON.parse(dataEl.textContent || '{}');
-      } catch (e) {
-        return;
-      }
-
-      staticEl.hidden = true;
-      liveEl.hidden = false;
-
-      var commands = T.commands || [];
-      var names = commands
-        .map(function (c) {
-          return c.name;
-        })
-        .sort();
-      var byName = {};
-      commands.forEach(function (c) {
-        byName[c.name] = c;
-      });
-
-      var $out = document.getElementById('out');
-      var $kbd = document.getElementById('kbd');
-      var $ps1 = document.getElementById('ps1');
-      var $pre = document.getElementById('pre');
-      var $post = document.getElementById('post');
-      var $caret = document.getElementById('caret');
-      var $ghost = document.getElementById('ghost');
-      var $pline = document.getElementById('pline');
-      var reduce =
-        window.matchMedia &&
-        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-      var esc = function (s) {
-        return String(s).replace(/[&<>"]/g, function (c) {
-          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
-        });
-      };
-      var scrollBottom = function () {
-        $out.scrollTop = $out.scrollHeight;
-      };
-      var print = function (html, cls) {
-        var d = document.createElement('div');
-        if (cls) d.className = cls;
-        d.innerHTML = html || '\u00a0';
-        $out.appendChild(d);
-        scrollBottom();
-        return d;
-      };
-      var printText = function (t, cls) {
-        return print(t === '' ? '\u00a0' : esc(t), cls);
-      };
-      var lineHTML = function (l) {
-        if (l.a !== undefined) {
-          var ext = /^https?:/.test(l.href);
-          return (
-            '<a href="' +
-            esc(l.href) +
-            '"' +
-            (ext ? ' target="_blank" rel="noopener"' : '') +
-            '>' +
-            esc(l.a) +
-            '</a>'
-          );
-        }
-        if (l.c) return '<span class="' + l.c + '">' + esc(l.t) + '</span>';
-        return esc(l.t);
-      };
-      var printLine = function (l) {
-        if (l.a !== undefined) return print(lineHTML(l));
-        if (l.c) return print('<span class="' + l.c + '">' + esc(l.t || '') + '</span>');
-        return printText(l.t || '');
-      };
-      var sleep = function (ms) {
-        return new Promise(function (r) {
-          setTimeout(r, ms);
-        });
-      };
-
-      var ps1HTML = function () {
-        return (
-          esc(T.promptUser) +
-          '@' +
-          esc(T.promptHost) +
-          ':<span class="path">~</span>$'
-        );
-      };
-      var printPromptLine = function (cmd) {
-        print('<span class="ps1">' + ps1HTML() + '</span> ' + esc(cmd));
-      };
-
-      var helpLines = function () {
-        var f = T.helpFlavor;
-        var lines = [
-          { t: f.header, c: 'bright' },
-          { t: '' },
-          { t: 'NAME', c: 'bright' },
-          { t: '     ' + f.name },
-          { t: '' },
-          { t: 'COMMANDS', c: 'bright' },
-        ];
-        commands.forEach(function (c) {
-          if (c.hidden) return;
-          var key = c.name + (c.args ? ' ' + c.args : '');
-          lines.push({
-            raw:
-              '<span class="amber">' +
-              esc(key.padEnd(18)) +
-              '</span>' +
-              esc(c.summary),
-          });
-        });
-        lines.push(
-          { t: '' },
-          { t: 'FILES', c: 'bright' },
-          { t: '     ' + f.files[0] },
-          { t: '     ' + f.files[1] },
-          { t: '' },
-          { t: 'BUGS', c: 'bright' },
-          { t: '     ' + f.bugs }
-        );
-        return lines;
-      };
-
-      var runCommand = function (name) {
-        var c = byName[name];
-        if (!c) return false;
-        if (c.action === 'clear') {
-          $out.innerHTML = '';
-          return true;
-        }
-        if (name === 'help') {
-          helpLines().forEach(function (l) {
-            if (l.raw !== undefined) print(l.raw);
-            else printLine(l);
-          });
-          return true;
-        }
-        (c.lines || []).forEach(printLine);
-        return true;
-      };
-
-      var closest = function (w) {
-        var best = names[0] || '';
-        var bs = 0;
-        for (var i = 0; i < names.length; i++) {
-          var c = names[i];
-          var s = 0;
-          var n = Math.min(w.length, c.length);
-          for (var j = 0; j < n; j++) if (w[j] === c[j]) s++;
-          if (s > bs) {
-            bs = s;
-            best = c;
-          }
-        }
-        return best;
-      };
-
-      /* Prompt rendering: caret sits at the true cursor position of the
-         hidden input; ghost shows the shared completion prefix, dimmed. */
-      var commonPrefix = function (arr) {
-        if (!arr.length) return '';
-        var p = arr[0];
-        for (var i = 0; i < arr.length; i++) {
-          while (!arr[i].startsWith(p)) p = p.slice(0, -1);
-        }
-        return p;
-      };
-      var ghostFor = function (v) {
-        if (v.indexOf(' ') !== -1) return '';
-        var m = names.filter(function (c) {
-          return c.startsWith(v) && c !== v;
-        });
-        if (!m.length) return '';
-        var p = commonPrefix(m);
-        return p.length > v.length ? p.slice(v.length) : '';
-      };
-      var renderPrompt = function () {
-        var v = $kbd.value;
-        var ci = $kbd.selectionStart == null ? v.length : $kbd.selectionStart;
-        $ps1.innerHTML = ps1HTML();
-        $pre.innerHTML = esc(v.slice(0, ci));
-        var at = v.charAt(ci);
-        $caret.textContent = at !== '' ? at : '\u00a0';
-        $post.innerHTML = esc(v.slice(ci + 1));
-        $ghost.textContent = ghostFor(v);
-        scrollBottom();
-      };
-
-      var history = [];
-      var hIndex = 0;
-      var draft = '';
-
-      var flashBell = function () {
-        $pline.classList.remove('bell');
-        void $pline.offsetWidth;
-        $pline.classList.add('bell');
-      };
-
-      var submit = function (raw) {
-        printPromptLine(raw);
-        var t = raw.trim();
-        if (!t) {
-          renderPrompt();
-          return;
-        }
-        history.push(raw);
-        hIndex = history.length;
-        draft = '';
-        var parts = t.split(/\s+/);
-        var cmd = parts[0].toLowerCase();
-        if (!runCommand(cmd)) {
-          if (cmd === '?') {
-            runCommand('help');
-          } else {
-            printText('terminal: command not found: ' + cmd, 'err');
-            printText("did you mean '" + closest(cmd) + "'? (or 'help')", 'dim');
-          }
-        }
-        renderPrompt();
-      };
-
-      var tabComplete = function () {
-        var v = $kbd.value;
-        if (v.indexOf(' ') !== -1) return;
-        var matches = names.filter(function (c) {
-          return c.startsWith(v) && c !== v;
-        });
-        if (!matches.length) {
-          flashBell();
-          return;
-        }
-        if (matches.length === 1) {
-          $kbd.value = matches[0] + ' ';
-        } else {
-          var p = commonPrefix(matches);
-          if (p.length > v.length) $kbd.value = p;
-          else {
-            flashBell();
-            print('<span class="dim">' + esc(matches.join('   ')) + '</span>');
-          }
-        }
-        renderPrompt();
-      };
-
-      $kbd.addEventListener('input', renderPrompt);
-      $kbd.addEventListener('keyup', renderPrompt);
-      $kbd.addEventListener('click', renderPrompt);
-      $kbd.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          submit($kbd.value);
-          $kbd.value = '';
-          renderPrompt();
-          return;
-        }
-        if (e.key === 'Tab') {
-          e.preventDefault();
-          tabComplete();
-          return;
-        }
-        if (e.key === 'l' && e.ctrlKey) {
-          e.preventDefault();
-          $out.innerHTML = '';
-          renderPrompt();
-          return;
-        }
-        if (e.key === 'c' && e.ctrlKey) {
-          e.preventDefault();
-          printPromptLine($kbd.value + '^C');
-          $kbd.value = '';
-          renderPrompt();
-          return;
-        }
-        if (e.key === 'ArrowUp') {
-          e.preventDefault();
-          if (hIndex > 0) {
-            if (hIndex === history.length) draft = $kbd.value;
-            hIndex--;
-            $kbd.value = history[hIndex];
-          } else flashBell();
-          caretToEnd();
-          return;
-        }
-        if (e.key === 'ArrowDown') {
-          e.preventDefault();
-          if (hIndex < history.length - 1) {
-            hIndex++;
-            $kbd.value = history[hIndex];
-          } else {
-            hIndex = history.length;
-            $kbd.value = draft;
-          }
-          caretToEnd();
-          return;
-        }
-      });
-      var caretToEnd = function () {
-        requestAnimationFrame(function () {
-          var v = $kbd.value;
-          $kbd.setSelectionRange(v.length, v.length);
-          renderPrompt();
-        });
-      };
-
-      // Any tap focuses the hidden input, which is what raises the keyboard
-      // on mobile. The exit link still wins its own click.
-      document.addEventListener('pointerdown', function () {
-        setTimeout(function () {
-          $kbd.focus({ preventScroll: true });
-        }, 0);
-      });
-
-      var typeLine = async function (text, cls, cps) {
-        var d = document.createElement('div');
-        if (cls) d.className = cls;
-        $out.appendChild(d);
-        for (var i = 0; i < text.length; i++) {
-          d.textContent = text.slice(0, i + 1);
-          if (i % 3 === 0) scrollBottom();
-          await sleep(cps);
-        }
-        await sleep(60);
-      };
-
-      var boot = async function () {
-        $ps1.innerHTML = ps1HTML();
-        if (reduce) {
-          printText(
-            'Last login: ' + new Date().toUTCString() + ' on ttys001',
-            'dim'
-          );
-          printBoot();
-          renderPrompt();
-          return;
-        }
-        await typeLine(
-          'Last login: ' + new Date().toUTCString() + ' on ttys001',
-          'dim',
-          3
-        );
-        await sleep(120);
-        for (var i = 0; i < (T.boot || []).length; i++) {
-          var b = T.boot[i];
-          await typeLine(b.t, b.c, 2);
-        }
-        printBoot();
-        await sleep(80);
-        (T.intro || []).forEach(printLine);
-        renderPrompt();
-      };
-      var printBoot = function () {
-        var pre = document.createElement('pre');
-        pre.className = 't-banner';
-        pre.textContent = (T.banner || []).join('\n');
-        $out.appendChild(pre);
-        scrollBottom();
-      };
-
-      $kbd.focus({ preventScroll: true });
-      boot();
-    })();
+(function () {
+var D = document;
+var dataEl = D.getElementById('term-data'), staticEl = D.getElementById('term-static'), liveEl = D.getElementById('term-live');
+if (!dataEl || !staticEl || !liveEl) return;
+var T; try { T = JSON.parse(dataEl.textContent || '{}'); } catch (e) { return; }
+staticEl.hidden = true; liveEl.hidden = false;
+var $out = D.getElementById('out'), $kbd = D.getElementById('kbd'), $ps1 = D.getElementById('ps1'), $pre = D.getElementById('pre'), $post = D.getElementById('post'), $caret = D.getElementById('caret'), $ghost = D.getElementById('ghost'), $pline = D.getElementById('pline');
+var RM = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+var M = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return M[c]; }); }
+var CK = /^(dim|bright|amber|err|ok)$/, HC = /^(https?:|mailto:)/;
+function SB() { $out.scrollTop = $out.scrollHeight; }
+function P(html, cls) { var d = D.createElement('div'); if (cls) d.className = cls; d.innerHTML = html || '\u00a0'; $out.appendChild(d); SB(); return d; }
+function PT(t, cls) { return P(t === '' ? '\u00a0' : esc(t), cls); }
+function LH(l) {
+if (typeof l === 'string') return esc(l);
+var cls = l.c && CK.test(l.c) ? l.c : '';
+if (l.a !== undefined) {
+var h = HC.test(l.href) ? l.href : '';
+if (!h) return cls ? '<span class="' + cls + '">' + esc(l.a) + '</span>' : esc(l.a);
+return '<a href="' + esc(h) + '"' + (/^https?:/.test(h) ? ' target="_blank" rel="noopener"' : '') + '>' + esc(l.a) + '</a>';
+}
+return cls ? '<span class="' + cls + '">' + esc(l.t || '') + '</span>' : esc(l.t || '');
+}
+function PL(l) { P(LH(l)); }
+function sleep(ms) { return RM ? Promise.resolve() : new Promise(function (r) { setTimeout(r, ms); }); }
+var cmds = T.commands || [], vis = cmds.filter(c => !c.hidden);
+var names = vis.map(c => c.name).sort();
+var byName = new Map(); cmds.forEach(function (c) { byName.set(c.name, c); });
+var byPath = new Map(); (T.files || []).forEach(function (f) { byPath.set(f.path, f); });
+var HOME = '/home/visitor', cwd = '', user = T.promptUser || 'visitor', st = 0, inc = 0, MTIME = 'Oct 12 12:00';
+var UNAME = 'phosphor ' + T.promptHost + ' 1.0 READ-ONLY arm64', EXIT = '/', PIN = '13be455a';
+var busy = false, seq = 0, AB = {};
+function tx(tk, t, cls) { if (tk !== seq) throw AB; PT(t, cls); }
+function strm(fn) {
+busy = true; $out.setAttribute('aria-busy', 'true'); var tk = ++seq;
+function done() { if (tk === seq) { busy = false; $out.removeAttribute('aria-busy'); } RP(); }
+fn(tk).then(done, done);
+}
+function ft(l) { return typeof l === 'string' ? l : l.a !== undefined ? l.a : l.t; }
+function ct(f) { return f.lines ? f.lines.map(ft).join('\n') : ''; }
+function bz(f) { if (!f) return 0; if (f.size != null) return f.size; if (f.payload) return f.payload.length; return f.lines ? ct(f).length + 1 : 0; }
+function rp(p) {
+p = String(p == null ? '' : p).trim();
+if (p[0] === '~') { if (p.length === 1) return ''; p = HOME + p.slice(1); }
+if (p[0] === '/') { if (p === '/') return ''; if (p.indexOf(HOME) !== 0) return null; p = p.slice(HOME.length); }
+else if (!p) return '';
+else p = (cwd ? '/' + cwd : '') + '/' + p;
+var a = [];
+p.split('/').forEach(function (s) { if (!s || s === '.') return; if (s === '..') { if (a.length) a.pop(); return; } a.push(s); });
+return a.join('/');
+}
+function dd(p) {
+if (p === '') return true;
+if (byPath.has(p)) return false;
+var pre = p + '/', hit = false;
+byPath.forEach((f, k) => { if (!hit && k.startsWith(pre)) hit = true; });
+return hit;
+}
+function ld(d) {
+var pre = d ? d + '/' : '', o = [];
+byPath.forEach(function (f, k) {
+if (k.indexOf(pre) !== 0) return;
+var r = k.slice(pre.length); if (!r) return;
+var s = r.indexOf('/'); o.push(s === -1 ? r : r.slice(0, s));
+});
+return o.filter(function (v, i) { return o.indexOf(v) === i; }).sort();
+}
+function jn(d, n) { return d ? d + '/' + n : n; }
+function p1() { return esc(user) + '@' + esc(T.promptHost) + ':<span class="path">~' + (cwd ? '/' + esc(cwd) : '') + '</span>$'; }
+function ppl(cmd) { P('<span class="ps1">' + p1() + '</span> ' + esc(cmd)); }
+var SK='428a2f9871374491b5c0fbcfe9b5dba53956c25b59f111f1923f82a4ab1c5ed5d807aa9812835b01243185be550c7dc372be5d7480deb1fe9bdc06a7c19bf174e49b69c1efbe47860fc19dc6240ca1cc2de92c6f4a7484aa5cb0a9dc76f988da983e5152a831c66db00327c8bf597fc7c6e00bf3d5a7914706ca63511429296727b70a852e1b21384d2c6dfc53380d13650a7354766a0abb81c2c92e92722c85a2bfe8a1a81a664bc24b8b70c76c51a3d192e819d6990624f40e3585106aa07019a4c1161e376c082748774c34b0bcb5391c0cb34ed8aa4a5b9cca4f682e6ff3748f82ee78a5636f84c878148cc7020890befffaa4506cebbef9a3f7c67178f2'.match(/.{8}/g).map(function (x) { return parseInt(x, 16); });
+function sha(s) {
+var b = new TextEncoder().encode(s), l = b.length, p = new Uint8Array((((l + 8) >> 6) + 1) << 6);
+p.set(b); p[l] = 0x80;
+var dv = new DataView(p.buffer);
+dv.setUint32(p.length - 8, l >>> 29); dv.setUint32(p.length - 4, (l << 3) >>> 0);
+var H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19], W = new Uint32Array(64);
+for (var o = 0; o < p.length; o += 64) {
+var j, q;
+for (j = 0; j < 16; j++) W[j] = dv.getUint32(o + 4 * j);
+for (q = 16; q < 64; q++) {
+var w = W[q - 15], u = W[q - 2];
+var s0 = ((w >>> 7) | (w << 25)) ^ ((w >>> 18) | (w << 14)) ^ (w >>> 3);
+var s1 = ((u >>> 17) | (u << 15)) ^ ((u >>> 19) | (u << 13)) ^ (u >>> 10);
+W[q] = (W[q - 16] + s0 + W[q - 7] + s1) >>> 0;
+}
+var a = H[0], b2 = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];
+for (var r = 0; r < 64; r++) {
+var S1 = ((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7));
+var ch = (e & f) ^ (~e & g), t1 = (h + S1 + ch + SK[r] + W[r]) >>> 0;
+var S0 = ((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10));
+var mj = (a & b2) ^ (a & c) ^ (b2 & c), t2 = (S0 + mj) >>> 0;
+h = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b2; b2 = a; a = (t1 + t2) >>> 0;
+}
+H[0]=(H[0]+a)>>>0;H[1]=(H[1]+b2)>>>0;H[2]=(H[2]+c)>>>0;H[3]=(H[3]+d)>>>0;H[4]=(H[4]+e)>>>0;H[5]=(H[5]+f)>>>0;H[6]=(H[6]+g)>>>0;H[7]=(H[7]+h)>>>0;
+}
+var out = ''; for (var x = 0; x < 8; x++) out += (H[x] >>> 0).toString(16).padStart(8, '0');
+return out;
+}
+function b64e(s) { var b = new TextEncoder().encode(s), x = ''; for (var i = 0; i < b.length; i++) x += String.fromCharCode(b[i]); return btoa(x); }
+function b64d(s) { var x = atob(s), b = new Uint8Array(x.length); for (var i = 0; i < x.length; i++) b[i] = x.charCodeAt(i); return new TextDecoder().decode(b); }
+function sh(s, n) { n = ((n % 26) + 26) % 26; return s.replace(/[A-Za-z]/g, c => { var b = c <= 'Z' ? 65 : 97; return String.fromCharCode((c.charCodeAt(0) - b + n) % 26 + b); }); }
+function d16(bs) {
+var o = [];
+for (var i = 0; i < bs.length; i += 16) {
+var hx = '', as = '';
+for (var g = 0; g < 8; g++) {
+var a = bs[i + 2 * g], b = bs[i + 2 * g + 1];
+hx += (g ? ' ' : '') + (a == null ? '  ' : (a < 16 ? '0' : '') + a.toString(16)) + (b == null ? '  ' : (b < 16 ? '0' : '') + b.toString(16));
+}
+for (var j = i; j < i + 16 && j < bs.length; j++) { var c = bs[j]; as += c >= 0x20 && c <= 0x7e ? String.fromCharCode(c) : '.'; }
+o.push(i.toString(16).padStart(4, '0') + ': ' + hx + '  ' + as);
+}
+return o;
+}
+function noi(n) { PT(n + ': (stdin): this page cannot accept piped stdin, name a file', 'dim'); st = 1; }
+function catF(a, c) {
+var arg = a.ops[0] != null ? a.ops[0] : c && c.file ? c.file : null;
+if (arg == null) { noi('cat'); return; }
+var p = rp(arg);
+if (p === null || (p !== '' && !byPath.has(p) && !dd(p))) { PT('cat: ' + arg + ': No such file or directory', 'err'); st = 1; return; }
+if (p === '' || dd(p)) { PT('cat: ' + arg + ': Is a directory', 'err'); st = 1; return; }
+var f = byPath.get(p);
+if (f.bin) {
+PT('cat: ' + arg + ': binary file' + (f.path === 'resume.pdf' ? ' (try the resume command)' : ''));
+if (f.payload) PT('(this drawer does not open by being read)', 'dim');
+st = 1; return;
+}
+(f.lines || []).forEach(PL); st = 0;
+}
+function lsC(fp, n) { if (dd(fp)) return n[0] === '.' ? 'dim' : 'bright'; if (n === 'resume.pdf') return 'amber'; return n[0] === '.' ? 'dim' : ''; }
+function lsF(a) {
+var arg = a.ops[0] || '', p = arg ? rp(arg) : cwd, base = p, one = null;
+if (p === null) { PT('ls: ' + (arg || '.') + ': No such file or directory', 'err'); st = 1; return; }
+if (p !== '' && !dd(p)) {
+if (byPath.has(p)) { var ix = p.lastIndexOf('/'); base = ix === -1 ? '' : p.slice(0, ix); one = p.slice(base ? base.length + 1 : 0); }
+else { PT('ls: ' + (arg || '.') + ': No such file or directory', 'err'); st = 1; return; }
+}
+var ents = one ? [one] : ld(p);
+if (!a.flags.a && !one) ents = ents.filter(n => n[0] !== '.');
+if (!ents.length) { st = 0; return; }
+if (a.flags.l) {
+ents.forEach(function (n) {
+var fp = jn(base, n), d = dd(fp), cls = lsC(fp, n);
+var body = (d ? 'dr-xr-xr-x' : '-r--r--r--') + '  1 visitor  shahilkadia  ' + String(d ? 512 : bz(byPath.get(fp))).padStart(7) + '  ' + MTIME + '  ' + n;
+P(cls ? '<span class="' + cls + '">' + esc(body) + '</span>' : esc(body));
+});
+} else {
+P(ents.map(function (n) {
+var fp = jn(base, n), cls = lsC(fp, n), lab = esc(n) + (dd(fp) ? '/' : '');
+return cls ? '<span class="' + cls + '">' + lab + '</span>' : lab;
+}).join('  '));
+}
+st = 0;
+}
+function cdF(a) {
+var arg = a.ops[0];
+if (arg == null) { cwd = ''; st = 0; return; }
+var p = rp(arg);
+if (p === null || !dd(p)) { PT('cd: no such file or directory: ' + arg, 'err'); st = 1; return; }
+cwd = p; st = 0;
+}
+function headF(a) {
+var arg = a.ops[0];
+if (arg == null) { noi('head'); return; }
+var f = byPath.get(rp(arg));
+if (!f || !f.lines) { PT("head: cannot open '" + arg + "' for reading: No such file or directory", 'err'); st = 1; return; }
+var n = a.flags.n != null ? parseInt(a.flags.n, 10) : 10;
+if (!(n > 0)) n = 10;
+f.lines.slice(0, n).forEach(PL); st = 0;
+}
+function wcF(a) {
+var arg = a.ops[0];
+if (arg == null) { noi('wc'); return; }
+var f = byPath.get(rp(arg));
+if (!f) { PT('wc: ' + arg + ': No such file or directory', 'err'); st = 1; return; }
+if (!f.lines) { PT('wc: ' + arg + ': binary file'); st = 1; return; }
+var s = ct(f);
+PT(f.lines.length + ' ' + s.split(/\s+/).filter(Boolean).length + ' ' + (s.length + 1) + ' ' + arg); st = 0;
+}
+function fileF(a) {
+var arg = a.ops[0];
+if (arg == null) { noi('file'); return; }
+var p = rp(arg), f = p == null ? null : byPath.get(p);
+if (p === null || (!f && !dd(p))) { PT('file: ' + arg + ': No such file or directory', 'err'); st = 1; return; }
+if (dd(p)) PT(arg + ': directory');
+else PT(arg + ': ' + (f.bin || 'ASCII text'));
+st = 0;
+}
+function echoF(a) {
+PT(a.ops.join(' ').replace(/\$(USER|HOSTNAME|PWD|\?)/g, function (m) {
+if (m === '$USER') return user;
+if (m === '$HOSTNAME') return T.promptHost;
+if (m === '$PWD') return HOME + (cwd ? '/' + cwd : '');
+return String(st);
+}));
+st = 0;
+}
+function unameF(a) {
+PT(UNAME);
+if (a.flags.a) PT('site build ' + (T.version || '0.1.0') + ', read-only mount, zero cookies', 'dim');
+st = 0;
+}
+function histF() { hist.forEach(function (h, i) { PT('  ' + (i + 1) + '  ' + h); }); st = 0; }
+function b64F(a) {
+var s = a.ops.join(' ');
+if (a.flags.d) {
+try { PT(b64d(s.trim())); } catch (e) { PT('base64: invalid input', 'err'); st = 1; return; }
+} else PT(s ? b64e(s) : '');
+st = 0;
+}
+function rotF(a) {
+PT(sh(a.ops.join(' '), a.flags.n != null ? parseInt(a.flags.n, 10) : 13));
+PT('rot13 is its own inverse, so the same command decodes this', 'dim');
+st = 0;
+}
+function xxdF(a) {
+var s = a.ops.join(' ');
+if (a.flags.r) {
+var m = (s.match(/[0-9a-fA-F]+/g) || []).reduce(function (x, y) { return y.length > x.length ? y : x; }, '');
+if (m.length < 8) { PT('xxd: no hex in that.', 'err'); st = 1; return; }
+if (m.length % 2) m = m.slice(0, -1);
+var b = new Uint8Array(m.length / 2);
+for (var i = 0; i < b.length; i++) b[i] = parseInt(m.substr(i * 2, 2), 16);
+PT(new TextDecoder().decode(b)); st = 0; return;
+}
+if (!s) { noi('xxd'); return; }
+d16(new TextEncoder().encode(s)).forEach(function (l) { PT(l); });
+st = 0;
+}
+function shaF(a) {
+var s = a.ops.join(' ');
+if (!s) { noi('sha256'); return; }
+var d = sha(s);
+PT('SHA2-256 (' + s + ') = ' + (a.flags.short ? d.slice(0, 12) : d)); st = 0;
+}
+var PHOSTS = { localhost: 1, 'shahilkadia.me': 1, 'voxbar.local': 1 }, PPIN = [0.041, 0.039, 0.043, 0.041];
+function hT(h, i) { var s = 0; for (var j = 0; j < h.length; j++) s = (s * 31 + h.charCodeAt(j)) >>> 0; s = (s + i * 2654435761) >>> 0; return (s % 800) / 10000 + 0.021; }
+function pingF(a) {
+var host = a.ops[0];
+if (!host) { PT('usage: ping [-c N] <host>', 'dim'); st = 1; return; }
+strm(async function (tk) {
+tx(tk, 'PING ' + host + ' (127.0.0.2): 56 data bytes, simulated. no packets leave this tab.');
+if (!PHOSTS[host]) { tx(tk, 'ping: cannot resolve ' + host + ': Unknown host', 'err'); st = 1; return; }
+var n = a.flags.c != null ? parseInt(a.flags.c, 10) : 4;
+if (!(n > 0)) n = 4;
+if (n > 4) { n = 4; tx(tk, '(-c capped at 4; nobody pings forever from a read-only tab)', 'dim'); }
+var nums = [];
+for (var i = 0; i < n; i++) {
+var tv = host === 'shahilkadia.me' ? PPIN[i] : hT(host, i);
+nums.push(tv);
+await sleep(260);
+tx(tk, '64 bytes from 127.0.0.2: icmp_seq=' + i + ' ttl=64 time=' + tv.toFixed(3) + ' ms');
+}
+await sleep(140);
+tx(tk, '--- ' + host + ' ping statistics ---');
+tx(tk, n + ' packets transmitted, ' + n + ' packets received, 0.0% packet loss');
+var mn = Math.min.apply(null, nums), mx = Math.max.apply(null, nums);
+var avg = nums.reduce((x, y) => x + y, 0) / n;
+var sd = Math.sqrt(nums.reduce((x, y) => x + (y - avg) * (y - avg), 0) / n);
+tx(tk, 'round-trip min/avg/max/stddev = ' + mn.toFixed(3) + '/' + avg.toFixed(3) + '/' + mx.toFixed(3) + '/' + sd.toFixed(3) + ' ms');
+tx(tk, '0 bytes touched a network.', 'dim');
+st = 0;
+});
+}
+function curlF(a) {
+var u = a.ops[0];
+if (!u) { PT('curl: no url. try: curl -I shahilkadia.me', 'dim'); st = 1; return; }
+var host = u.replace(/^https?:\/\//, '').split('/')[0].split(':')[0];
+if (a.flags.I && (host === 'shahilkadia.me' || host === 'localhost')) {
+PT('HTTP/2 200'); PT('content-type: text/html; charset=utf-8');
+PT('x-served-from: the term-data script tag already in this DOM');
+PT('cache-control: no-store (nothing left)');
+st = 0; return;
+}
+PT('curl: (6) could not resolve host', 'err');
+PT('this tab has no network. try: curl -I shahilkadia.me', 'dim');
+st = 1;
+}
+function nmapF(a) {
+var t = a.ops[0] || '';
+strm(async function (tk) {
+if (!(t === 'localhost' || t === '127.0.0.1' || t === T.promptHost)) {
+tx(tk, 'nmap: refusing ' + (t || '(nothing)') + ': out of scope. the only host that consented is the one rendering this text. try: nmap localhost', 'err');
+st = 1; return;
+}
+tx(tk, 'Starting Nmap 7.94 ( read-only edition ) against ' + t);
+await sleep(420);
+tx(tk, '23/tcp   open     telnet    this terminal, you are already in it', 'bright');
+await sleep(160);
+tx(tk, '80/tcp   closed   http      the projects listing, one cd away');
+tx(tk, '443/tcp  closed   https     resume.pdf, sealed');
+tx(tk, '3306/tcp closed   mysql     a database that does not exist');
+await sleep(120);
+tx(tk, 'not shown: 65531 closed ports (they are only the dark).', 'dim');
+st = 0;
+});
+}
+function gpgF(a) {
+strm(async function (tk) {
+var w = a.flags.passphrase;
+if (!a.flags.d || a.ops[0] !== '.secrets/reward.gpg' || !w) {
+tx(tk, 'gpg: nothing to decrypt (this gpg opens exactly one file).'); st = 1; return;
+}
+if (sha(w.trim()).slice(0, 8) !== PIN) { tx(tk, 'gpg: decryption failed: bad session key', 'err'); st = 1; return; }
+tx(tk, 'gpg: symmetric cipher, 256 bits', 'dim');
+await sleep(500);
+tx(tk, 'gpg: decryption okay', 'ok');
+var f = byPath.get('.secrets/reward.gpg'), plain = '';
+try { plain = f && f.payload ? b64d(f.payload) : ''; } catch (e) {}
+plain.split('\n').forEach(function (l, i) { PL({ t: l, c: i < 3 ? 'bright' : 'dim' }); });
+user = 'operator'; st = 0;
+});
+}
+function exitF() {
+PT('Connection to ' + T.promptHost + '. closed.'); st = 0;
+setTimeout(function () { location.href = EXIT; }, 350);
+}
+function lns(c, a) {
+(c.lines || []).forEach(function (l) {
+if (typeof l === 'string') l = { t: l };
+if (l.t && l.t.indexOf('{x}') !== -1) PL({ t: l.t.replace('{x}', a.ops[0] || ''), c: l.c });
+else PL(l);
+});
+}
+function sudoF(a) {
+if (a.flags.l) {
+PT('User ' + T.promptUser + ' may run the following commands on ' + T.promptHost + ':');
+PT('    (root) NOPASSWD: /usr/bin/exit'); st = 0; return;
+}
+if (a.ops[0] === 'exit') {
+PT('fine. one command, pre-authorized, no questions asked.');
+PT('exiting with privileges you never actually had:');
+exitF(); return;
+}
+inc++;
+var c = byName.get('sudo');
+(c && c.lines ? c.lines : []).forEach(function (l) {
+if (typeof l === 'string') l = { t: l };
+PL({ t: l.t && inc > 1 ? l.t.replace('incident', 'incident #' + inc) : l.t, c: l.c });
+});
+st = 1;
+}
+var hPad = Math.max(18, Math.max.apply(null, vis.map(c => (c.name + (c.args ? ' ' + c.args : '')).length)) + 2);
+function helpF() {
+var f = T.helpFlavor;
+PL({ t: f.header, c: 'bright' }); PT('');
+PL({ t: 'NAME', c: 'bright' }); PT('     ' + f.name); PT('');
+PL({ t: 'COMMANDS', c: 'bright' });
+vis.forEach(function (c) { P('<span class="amber">' + esc((c.name + (c.args ? ' ' + c.args : '')).padEnd(hPad)) + '</span>' + esc(c.summary)); });
+PT('');
+PL({ t: 'FILES', c: 'bright' });
+(f.files || []).forEach(function (r) { PT('     ' + r); });
+PT('');
+PL({ t: 'BUGS', c: 'bright' }); PT('     ' + f.bugs); st = 0;
+}
+function manF(a) {
+var m = a.ops[0];
+if (!m) { PT('What manual page do you want?', 'err'); PT("try 'man man'", 'dim'); st = 1; return; }
+var c = byName.get(m.toLowerCase());
+if (!c || c.hidden) { PT('No manual entry for ' + m); st = 1; return; }
+var u = c.name.toUpperCase() + '(1)';
+PL({ t: u + ' '.repeat(Math.max(2, 30 - u.length)) + 'Shahil Kadia' + ' '.repeat(Math.max(2, 30 - 12)) + u, c: 'bright' });
+PT('');
+PL({ t: 'NAME', c: 'bright' }); PT('     ' + c.name + ' - ' + c.summary); PT('');
+PL({ t: 'SYNOPSIS', c: 'bright' }); PT('     ' + c.name + (c.args ? ' ' + c.args : '')); PT('');
+PL({ t: 'DESCRIPTION', c: 'bright' }); PT('     ' + c.summary); PT('');
+PL({ t: 'BUGS', c: 'bright' }); PT('     ' + T.helpFlavor.bugs); st = 0;
+}
+var ENG = {
+clear: function () { $out.innerHTML = ''; st = 0; },
+help: helpF, man: manF, ls: lsF, cat: catF, cd: cdF,
+pwd: function () { PT(HOME + (cwd ? '/' + cwd : ''), 'dim'); st = 0; },
+head: headF, wc: wcF, file: fileF, echo: echoF,
+whoami: function () { PT(user); st = 0; },
+uname: unameF,
+date: function () { PT(new Date().toUTCString()); st = 0; },
+history: histF, base64: b64F, rot13: rotF, xxd: xxdF, sha256: shaF,
+ping: pingF, curl: curlF, nmap: nmapF, exit: exitF, sudo: sudoF,
+gpg: gpgF
+};
+['su', 'ssh', 'sqlmap', 'hydra', 'nikto', 'rm', 'touch'].forEach(function (k) {
+ENG[k] = function (a, c) { lns(c, a); st = 1; };
+});
+function run(name, a) {
+var c = byName.get(name);
+if (!c) return false;
+var fn = ENG[c.action || name];
+if (fn) { fn(a, c); return true; }
+(c.lines || []).forEach(PL); st = 0; return true;
+}
+function near(w) {
+var best = names[0] || '', bs = 0;
+for (var i = 0; i < names.length; i++) {
+var c = names[i], s = 0, n = Math.min(w.length, c.length);
+for (var j = 0; j < n; j++) if (w[j] === c[j]) s++;
+if (s > bs) { bs = s; best = c; }
+}
+return best;
+}
+function cpfx(arr) {
+if (!arr.length) return '';
+var p = arr[0];
+for (var i = 0; i < arr.length; i++) { while (!arr[i].startsWith(p)) p = p.slice(0, -1); }
+return p;
+}
+function pool(cmd, d) {
+var o = ld(d).filter(n => n[0] !== '.');
+if (cmd === 'cd' || cmd === 'ls') return o.filter(n => dd(jn(d, n)));
+if (cmd === 'cat') return o.filter(n => !dd(jn(d, n)));
+return [];
+}
+function stail(v) {
+var i = v.lastIndexOf(' ');
+if (i === -1) return { head: '', tail: v, cmd: v.trim().toLowerCase() };
+return { head: v.slice(0, i + 1), tail: v.slice(i + 1), cmd: v.slice(0, i).trim().split(/\s+/)[0].toLowerCase() };
+}
+function gh(v) {
+var s = stail(v), src = s.head === '' ? names : pool(s.cmd, cwd);
+var m = src.filter(n => n.lastIndexOf(s.tail, 0) === 0 && n !== s.tail);
+if (!m.length) return '';
+var p = cpfx(m);
+return p.length > s.tail.length ? p.slice(s.tail.length) : '';
+}
+function RP() {
+var v = $kbd.value, ci = $kbd.selectionStart == null ? v.length : $kbd.selectionStart;
+$ps1.innerHTML = p1();
+$pre.innerHTML = esc(v.slice(0, ci));
+var at = v.charAt(ci);
+$caret.textContent = at !== '' ? at : '\u00a0';
+$post.innerHTML = esc(v.slice(ci + 1));
+$ghost.textContent = gh(v);
+SB();
+}
+var hist = [], hi = 0, draft = '';
+function bell() { $pline.classList.remove('bell'); void $pline.offsetWidth; $pline.classList.add('bell'); }
+var FSPEC = { head: { n: 2 }, rot13: { n: 2 }, ping: { c: 2 }, gpg: { d: 1, passphrase: 2 }, base64: { d: 1 }, xxd: { r: 1 }, sha256: { short: 1 }, uname: { a: 1 }, ls: { a: 1, l: 1 }, curl: { I: 1 }, sudo: { l: 1 } };
+function argv(t) {
+var toks = t.split(/\s+/), cmd = toks[0].toLowerCase(), spec = FSPEC[cmd] || {}, flags = {}, ops = [];
+for (var i = 1; i < toks.length; i++) {
+var s = toks[i];
+if (s.length > 1 && s.charAt(0) === '-') {
+var body = s.charAt(1) === '-' ? s.slice(2) : s.slice(1), known = true, j;
+if (s.charAt(1) === '-') { if (!spec[body]) known = false; }
+else { for (j = 0; j < body.length; j++) if (!spec[body.charAt(j)]) { known = false; break; } }
+if (!known) ops.push(s);
+else if (s.charAt(1) === '-') {
+if (spec[body] === 2) flags[body] = toks[++i]; else flags[body] = true;
+} else {
+for (j = 0; j < body.length; j++) flags[body.charAt(j)] = true;
+var lc = body.charAt(body.length - 1);
+if (spec[lc] === 2 && i + 1 < toks.length) flags[lc] = toks[++i];
+}
+} else ops.push(s);
+}
+return { cmd: cmd, flags: flags, ops: ops, raw: t };
+}
+function sub(raw) {
+ppl(raw);
+var t = raw.trim();
+if (!t) { RP(); return; }
+hist.push(raw); hi = hist.length; draft = '';
+var a = argv(t);
+if (!run(a.cmd, a)) {
+if (a.cmd === '?') run('help', { flags: {}, ops: [], raw: '?' });
+else {
+PT('terminal: command not found: ' + a.cmd, 'err');
+PT("did you mean '" + near(a.cmd) + "'? (or 'help')", 'dim');
+st = 127;
+}
+}
+if (!busy) RP();
+}
+function tab() {
+var v = $kbd.value, s = stail(v), src = s.head === '' ? names : pool(s.cmd, cwd);
+var m = src.filter(n => n.lastIndexOf(s.tail, 0) === 0 && n !== s.tail);
+if (!m.length) { bell(); return; }
+if (m.length === 1) $kbd.value = s.head + m[0] + ' ';
+else {
+var p = cpfx(m);
+if (p.length > s.tail.length) $kbd.value = s.head + p;
+else { bell(); P('<span class="dim">' + esc(m.join('   ')) + '</span>'); }
+}
+RP();
+}
+$kbd.addEventListener('input', RP);
+$kbd.addEventListener('keyup', RP);
+$kbd.addEventListener('click', RP);
+$kbd.addEventListener('keydown', function (e) {
+if (e.key === 'Enter') {
+e.preventDefault();
+if (!busy) { sub($kbd.value); $kbd.value = ''; }
+RP(); return;
+}
+if (e.key === 'Tab') { e.preventDefault(); tab(); return; }
+if (e.key === 'l' && e.ctrlKey) { e.preventDefault(); $out.innerHTML = ''; RP(); return; }
+if (e.key === 'c' && e.ctrlKey) {
+e.preventDefault();
+if (busy) { seq++; busy = false; $out.removeAttribute('aria-busy'); }
+ppl($kbd.value + '^C'); $kbd.value = ''; RP(); return;
+}
+if (e.key === 'ArrowUp') {
+e.preventDefault();
+if (hi > 0) { if (hi === hist.length) draft = $kbd.value; hi--; $kbd.value = hist[hi]; } else bell();
+cend(); return;
+}
+if (e.key === 'ArrowDown') {
+e.preventDefault();
+if (hi < hist.length - 1) { hi++; $kbd.value = hist[hi]; }
+else { hi = hist.length; $kbd.value = draft; }
+cend(); return;
+}
+});
+function cend() {
+requestAnimationFrame(function () {
+var v = $kbd.value;
+$kbd.setSelectionRange(v.length, v.length);
+RP();
+});
+}
+D.addEventListener('pointerdown', function () {
+setTimeout(function () { $kbd.focus({ preventScroll: true }); }, 0);
+});
+var typ = async function (txt, cls, cps) {
+var d = D.createElement('div');
+if (cls) d.className = cls;
+$out.appendChild(d);
+for (var i = 0; i < txt.length; i++) {
+d.textContent = txt.slice(0, i + 1);
+if (i % 3 === 0) SB();
+await sleep(cps);
+}
+await sleep(60);
+};
+var boot = async function () {
+$ps1.innerHTML = p1();
+if (RM) {
+PT('Last login: ' + new Date().toUTCString() + ' on ttys001', 'dim');
+(T.boot || []).forEach(function (b) { PT(b.t, b.c); });
+pboot();
+(T.intro || []).forEach(PL);
+RP(); return;
+}
+await typ('Last login: ' + new Date().toUTCString() + ' on ttys001', 'dim', 3);
+await sleep(120);
+for (var i = 0; i < (T.boot || []).length; i++) { var b = T.boot[i]; await typ(b.t, b.c, 2); }
+pboot();
+await sleep(80);
+(T.intro || []).forEach(PL);
+RP();
+};
+function pboot() {
+var pre = D.createElement('pre');
+pre.className = 't-banner';
+pre.textContent = (T.banner || []).join('\n');
+$out.appendChild(pre); SB();
+}
+$kbd.focus({ preventScroll: true });
+boot();
+})();
   </script>
 </Layout>
 
 <style is:global>
-  /* /terminal: a fixed phosphor palette that ignores the site theme. All
-     rules live under body.term-root so nothing leaks to other pages. */
+  /* /terminal: a fixed crt green-on-black palette that ignores the site
+     theme. All rules live under body.term-root so nothing leaks to other
+     pages. */
   body.term-root {
     background: #050705;
     color: #9dffb0;
@@ -551,7 +905,10 @@ const dataJson = JSON.stringify(data).replace(/</g, '\\u003c');
     flex-direction: column;
     max-width: 56.25rem;
     margin: 0 auto;
-    padding: 1rem 1.25rem 1.75rem;
+    /* No bottom padding: the script-off transcript must meet the frame edge
+       so its scroll fold never slices a glyph above dead space. The live
+       layout carries its own bottom padding below the prompt line. */
+    padding: 1rem 1.25rem 0;
     font-family: var(--font-mono);
     font-size: 15px;
     line-height: 1.5;
@@ -587,8 +944,11 @@ const dataJson = JSON.stringify(data).replace(/</g, '\\u003c');
   #term-static {
     flex: 1;
     min-height: 0;
-    /* Top clearance so the fixed exit link can never overprint content. */
-    padding-top: 2rem;
+    /* Top clearance so the fixed exit link starts clear of content. */
+    padding-top: 2.75rem;
+    /* Bottom comfort lives inside the scroller (it scrolls with content)
+       so the fold itself sits on the frame edge, never above dead space. */
+    padding-bottom: 0.75rem;
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: #1d3a26 transparent;
@@ -599,6 +959,8 @@ const dataJson = JSON.stringify(data).replace(/</g, '\\u003c');
     min-height: 0;
     display: flex;
     flex-direction: column;
+    /* The prompt line keeps its clearance above the frame edge. */
+    padding-bottom: 1.75rem;
   }
 
   #term-live[hidden] {
@@ -608,8 +970,8 @@ const dataJson = JSON.stringify(data).replace(/</g, '\\u003c');
   #out {
     flex: 1;
     min-height: 0;
-    /* Top clearance so the fixed exit link can never overprint content. */
-    padding-top: 2rem;
+    /* Top clearance so the fixed exit link starts clear of content. */
+    padding-top: 2.75rem;
     overflow-y: auto;
     white-space: pre-wrap;
     word-break: break-word;
@@ -716,6 +1078,10 @@ const dataJson = JSON.stringify(data).replace(/</g, '\\u003c');
     font-size: 0.8em;
     color: #3f6b4a;
     text-decoration: none;
+    /* A page-background chip: scrolled lines pass under the fixed link
+       without ever printing through it. */
+    background: #050705;
+    padding: 0.25rem 0.5rem;
   }
 
   a.term-exit:hover {
@@ -742,7 +1108,15 @@ const dataJson = JSON.stringify(data).replace(/</g, '\\u003c');
   @media (max-width: 480px) {
     .term {
       font-size: 12.5px;
-      padding: 0.75rem 0.75rem 1.25rem;
+      padding: 0.75rem 0.75rem 0;
+    }
+
+    #term-live {
+      padding-bottom: 1.25rem;
+    }
+
+    #term-static {
+      padding-bottom: 0.75rem;
     }
 
     a.term-exit {
