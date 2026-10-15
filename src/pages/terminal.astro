@@ -189,6 +189,14 @@ const GENERATED: Record<string, TermLine[]> = {
   echo: [{ t: 'visitor' }],
   whoami: [{ t: 'visitor' }],
   pwd: [{ t: '/home/visitor', c: 'dim' }],
+  grep: [
+    { t: 'mission-control/  python' },
+    { t: 'omniforge/        python' },
+  ],
+  copy: [
+    { t: 'copied ' + aboutText.length + ' characters to the clipboard from about.md.', c: 'ok' },
+    { t: '(the clipboard needs the live terminal; this transcript cannot hold one)', c: 'dim' },
+  ],
 };
 
 const staticLines = (c: TermCommand): TermLine[] =>
@@ -419,6 +427,51 @@ if (f.payload) PT('(this drawer does not open by being read)', 'dim');
 st = 1; return;
 }
 (f.lines || []).forEach(PL); st = 0;
+}
+function grepF(a) {
+var pat = a.ops[0];
+if (!pat) { PT('usage: grep [-i] <pattern> [file]', 'dim'); st = 1; return; }
+var fl = a.flags.i ? 'i' : '', re, g;
+try { re = new RegExp(pat, fl); g = new RegExp(pat, fl + 'g'); } catch (e) { PT('grep: ' + pat + ': invalid pattern', 'err'); st = 1; return; }
+var p = a.ops[1] != null ? rp(a.ops[1]) : cwd;
+if (p === null || (a.ops[1] != null && !byPath.has(p) && !dd(p))) { PT('grep: ' + a.ops[1] + ': No such file or directory', 'err'); st = 1; return; }
+var fs = [];
+if (p !== '' && byPath.has(p)) fs.push(byPath.get(p));
+else { var pre = p === '' ? '' : p + '/'; byPath.forEach(function (f, k) { if (k.indexOf(pre) === 0 && f.lines) fs.push(f); }); }
+var multi = fs.length > 1, n = 0;
+fs.forEach(function (f) {
+(f.lines || []).forEach(function (l) {
+var t = ft(l);
+if (!re.test(t)) return;
+n++;
+g.lastIndex = 0;
+var h = '', x = 0, m;
+while ((m = g.exec(t)) !== null) {
+if (!m[0].length) { g.lastIndex++; continue; }
+h += esc(t.slice(x, m.index)) + '<span class="amber">' + esc(m[0]) + '</span>';
+x = m.index + m[0].length;
+}
+h += esc(t.slice(x));
+P((multi ? esc(f.path) + ':' : '') + h);
+});
+});
+st = n ? 0 : 1;
+}
+function copyF(a) {
+var arg = a.ops.join(' ');
+if (!arg) { PT('usage: copy <file | text>', 'dim'); st = 1; return; }
+var p = rp(a.ops[0]), f = p == null ? null : byPath.get(p);
+if (f && !f.lines) { PT('copy: ' + a.ops[0] + ': binary file', 'err'); st = 1; return; }
+var text = f ? ct(f) : arg;
+if (!(navigator.clipboard && navigator.clipboard.writeText)) { PT('copy: this browser has no clipboard api. selecting text with the cursor still works.', 'err'); st = 1; return; }
+navigator.clipboard.writeText(text).then(function () {
+PT('copied ' + text.length + ' characters to the clipboard' + (f ? ' from ' + f.path : '') + '.', 'ok');
+PT('nothing here phones home.', 'dim');
+st = 0;
+}, function () {
+PT('copy: the browser refused the clipboard. selecting text with the cursor works too.', 'err');
+st = 1;
+});
 }
 function lsC(fp, n) { if (dd(fp)) return n[0] === '.' ? 'dim' : 'bright'; if (n === 'resume.pdf') return 'amber'; return n[0] === '.' ? 'dim' : ''; }
 function lsF(a) {
@@ -661,7 +714,8 @@ PL({ t: 'BUGS', c: 'bright' }); PT('     ' + T.helpFlavor.bugs); st = 0;
 }
 var ENG = {
 clear: function () { $out.innerHTML = ''; st = 0; },
-help: helpF, man: manF, ls: lsF, cat: catF, cd: cdF,
+help: helpF, man: manF, ls: lsF, cat: catF, grep: grepF, copy: copyF,
+cd: cdF,
 pwd: function () { PT(HOME + (cwd ? '/' + cwd : ''), 'dim'); st = 0; },
 head: headF, wc: wcF, file: fileF, echo: echoF,
 whoami: function () { PT(user); st = 0; },
@@ -696,10 +750,10 @@ var p = arr[0];
 for (var i = 0; i < arr.length; i++) { while (!arr[i].startsWith(p)) p = p.slice(0, -1); }
 return p;
 }
-function pool(cmd, d) {
+function pool(cmd, d, files) {
 var o = ld(d).filter(n => n[0] !== '.');
 if (cmd === 'cd' || cmd === 'ls') return o.filter(n => dd(jn(d, n)));
-if (cmd === 'cat') return o.filter(n => !dd(jn(d, n)));
+if (cmd === 'cat' || cmd === 'head' || cmd === 'wc' || cmd === 'file' || cmd === 'copy' || (cmd === 'grep' && files)) return o.filter(n => !dd(jn(d, n)));
 return [];
 }
 function stail(v) {
@@ -707,8 +761,9 @@ var i = v.lastIndexOf(' ');
 if (i === -1) return { head: '', tail: v, cmd: v.trim().toLowerCase() };
 return { head: v.slice(0, i + 1), tail: v.slice(i + 1), cmd: v.slice(0, i).trim().split(/\s+/)[0].toLowerCase() };
 }
+function psrc(s) { return s.head === '' ? names : pool(s.cmd, cwd, s.head.trim().split(/\s+/).length > 1); }
 function gh(v) {
-var s = stail(v), src = s.head === '' ? names : pool(s.cmd, cwd);
+var s = stail(v), src = psrc(s);
 var m = src.filter(n => n.lastIndexOf(s.tail, 0) === 0 && n !== s.tail);
 if (!m.length) return '';
 var p = cpfx(m);
@@ -726,7 +781,7 @@ SB();
 }
 var hist = [], hi = 0, draft = '';
 function bell() { $pline.classList.remove('bell'); void $pline.offsetWidth; $pline.classList.add('bell'); }
-var FSPEC = { head: { n: 2 }, rot13: { n: 2 }, ping: { c: 2 }, gpg: { d: 1, passphrase: 2 }, base64: { d: 1 }, xxd: { r: 1 }, sha256: { short: 1 }, uname: { a: 1 }, ls: { a: 1, l: 1 }, curl: { I: 1 }, sudo: { l: 1 } };
+var FSPEC = { head: { n: 2 }, rot13: { n: 2 }, ping: { c: 2 }, gpg: { d: 1, passphrase: 2 }, base64: { d: 1 }, xxd: { r: 1 }, sha256: { short: 1 }, uname: { a: 1 }, ls: { a: 1, l: 1 }, curl: { I: 1 }, sudo: { l: 1 }, grep: { i: 1 } };
 function argv(t) {
 var toks = t.split(/\s+/), cmd = toks[0].toLowerCase(), spec = FSPEC[cmd] || {}, flags = {}, ops = [];
 for (var i = 1; i < toks.length; i++) {
@@ -764,7 +819,7 @@ st = 127;
 if (!busy) RP();
 }
 function tab() {
-var v = $kbd.value, s = stail(v), src = s.head === '' ? names : pool(s.cmd, cwd);
+var v = $kbd.value, s = stail(v), src = psrc(s);
 var m = src.filter(n => n.lastIndexOf(s.tail, 0) === 0 && n !== s.tail);
 if (!m.length) { bell(); return; }
 if (m.length === 1) $kbd.value = s.head + m[0] + ' ';
@@ -810,7 +865,20 @@ $kbd.setSelectionRange(v.length, v.length);
 RP();
 });
 }
-D.addEventListener('pointerdown', function () {
+// Focus follows clicks, not drags: stealing focus mid-drag collapses a text
+// selection, so drags keep the selection, clicks retake the prompt, and a
+// touch on the output text (long-press select) is left alone.
+var pds = null;
+D.addEventListener('pointerdown', function (e) {
+pds = { x: e.clientX, y: e.clientY, touch: e.pointerType === 'touch', out: !!(e.target && e.target.closest && (e.target.closest('#out') || e.target.closest('#term-static'))) };
+});
+D.addEventListener('pointerup', function (e) {
+if (!pds) return;
+var mv = Math.abs(e.clientX - pds.x) + Math.abs(e.clientY - pds.y), o = pds.out, tc = pds.touch;
+pds = null;
+if (mv > 6 || (o && tc)) return;
+var sel = window.getSelection ? String(window.getSelection()) : '';
+if (sel) return;
 setTimeout(function () { $kbd.focus({ preventScroll: true }); }, 0);
 });
 var typ = async function (txt, cls, cps) {

@@ -1,12 +1,15 @@
 // Weight gate for /terminal: uncompressed inline JS plus inline CSS in
-// dist/terminal/index.html must stay under the 40 KB budget. Counts every
+// dist/terminal/index.html must stay under the budget. Counts every
 // inline <script> body without src (ld+json excluded, the term-data
 // application/json island INCLUDED) plus every <style> body. Zero deps.
+// Budget raised 40960 -> 43008 with the grep/copy/selection round: the
+// toolbelt has grown by operator commission (36 commands, then grep, copy,
+// and cursor selection), and the page still ships about 11 KB gzipped.
 import { readFile } from 'node:fs/promises';
 
 const FILE = new URL('../dist/terminal/index.html', import.meta.url).pathname;
-const BUDGET = 40960;
-const DESIGN_TARGET = 39000;
+const BUDGET = 43008;
+const DESIGN_TARGET = 41000;
 
 const html = await readFile(FILE, 'utf8');
 
