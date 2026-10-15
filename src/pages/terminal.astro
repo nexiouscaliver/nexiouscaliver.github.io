@@ -315,8 +315,8 @@ return cls ? '<span class="' + cls + '">' + esc(l.t || '') + '</span>' : esc(l.t
 }
 function PL(l) { P(LH(l)); }
 function sleep(ms) { return RM ? Promise.resolve() : new Promise(function (r) { setTimeout(r, ms); }); }
-var cmds = T.commands || [], vis = cmds.filter(function (c) { return !c.hidden; });
-var names = vis.map(function (c) { return c.name; }).sort();
+var cmds = T.commands || [], vis = cmds.filter(c => !c.hidden);
+var names = vis.map(c => c.name).sort();
 var byName = new Map(); cmds.forEach(function (c) { byName.set(c.name, c); });
 var byPath = new Map(); (T.files || []).forEach(function (f) { byPath.set(f.path, f); });
 var HOME = '/home/visitor', cwd = '', user = T.promptUser || 'visitor', st = 0, inc = 0, MTIME = 'Oct 12 12:00';
@@ -333,8 +333,8 @@ function ct(f) { return f.lines ? f.lines.map(ft).join('\n') : ''; }
 function bz(f) { if (!f) return 0; if (f.size != null) return f.size; if (f.payload) return f.payload.length; return f.lines ? ct(f).length + 1 : 0; }
 function rp(p) {
 p = String(p == null ? '' : p).trim();
-if (p.charAt(0) === '~') { if (p.length === 1) return ''; p = HOME + p.slice(1); }
-if (p.charAt(0) === '/') { if (p === '/') return ''; if (p.indexOf(HOME) !== 0) return null; p = p.slice(HOME.length); }
+if (p[0] === '~') { if (p.length === 1) return ''; p = HOME + p.slice(1); }
+if (p[0] === '/') { if (p === '/') return ''; if (p.indexOf(HOME) !== 0) return null; p = p.slice(HOME.length); }
 else if (!p) return '';
 else p = (cwd ? '/' + cwd : '') + '/' + p;
 var a = [];
@@ -345,7 +345,7 @@ function dd(p) {
 if (p === '') return true;
 if (byPath.has(p)) return false;
 var pre = p + '/', hit = false;
-byPath.forEach(function (f, k) { if (!hit && k.indexOf(pre) === 0) hit = true; });
+byPath.forEach((f, k) => { if (!hit && k.startsWith(pre)) hit = true; });
 return hit;
 }
 function ld(d) {
@@ -360,7 +360,7 @@ return o.filter(function (v, i) { return o.indexOf(v) === i; }).sort();
 function jn(d, n) { return d ? d + '/' + n : n; }
 function p1() { return esc(user) + '@' + esc(T.promptHost) + ':<span class="path">~' + (cwd ? '/' + esc(cwd) : '') + '</span>$'; }
 function ppl(cmd) { P('<span class="ps1">' + p1() + '</span> ' + esc(cmd)); }
-var SK = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+var SK='428a2f9871374491b5c0fbcfe9b5dba53956c25b59f111f1923f82a4ab1c5ed5d807aa9812835b01243185be550c7dc372be5d7480deb1fe9bdc06a7c19bf174e49b69c1efbe47860fc19dc6240ca1cc2de92c6f4a7484aa5cb0a9dc76f988da983e5152a831c66db00327c8bf597fc7c6e00bf3d5a7914706ca63511429296727b70a852e1b21384d2c6dfc53380d13650a7354766a0abb81c2c92e92722c85a2bfe8a1a81a664bc24b8b70c76c51a3d192e819d6990624f40e3585106aa07019a4c1161e376c082748774c34b0bcb5391c0cb34ed8aa4a5b9cca4f682e6ff3748f82ee78a5636f84c878148cc7020890befffaa4506cebbef9a3f7c67178f2'.match(/.{8}/g).map(function (x) { return parseInt(x, 16); });
 function sha(s) {
 var b = new TextEncoder().encode(s), l = b.length, p = new Uint8Array((((l + 8) >> 6) + 1) << 6);
 p.set(b); p[l] = 0x80;
@@ -391,7 +391,7 @@ return out;
 }
 function b64e(s) { var b = new TextEncoder().encode(s), x = ''; for (var i = 0; i < b.length; i++) x += String.fromCharCode(b[i]); return btoa(x); }
 function b64d(s) { var x = atob(s), b = new Uint8Array(x.length); for (var i = 0; i < x.length; i++) b[i] = x.charCodeAt(i); return new TextDecoder().decode(b); }
-function sh(s, n) { n = ((n % 26) + 26) % 26; return s.replace(/[A-Za-z]/g, function (c) { var b = c <= 'Z' ? 65 : 97; return String.fromCharCode((c.charCodeAt(0) - b + n) % 26 + b); }); }
+function sh(s, n) { n = ((n % 26) + 26) % 26; return s.replace(/[A-Za-z]/g, c => { var b = c <= 'Z' ? 65 : 97; return String.fromCharCode((c.charCodeAt(0) - b + n) % 26 + b); }); }
 function d16(bs) {
 var o = [];
 for (var i = 0; i < bs.length; i += 16) {
@@ -420,7 +420,7 @@ st = 1; return;
 }
 (f.lines || []).forEach(PL); st = 0;
 }
-function lsC(fp, n) { if (dd(fp)) return n.charAt(0) === '.' ? 'dim' : 'bright'; if (n === 'resume.pdf') return 'amber'; return n.charAt(0) === '.' ? 'dim' : ''; }
+function lsC(fp, n) { if (dd(fp)) return n[0] === '.' ? 'dim' : 'bright'; if (n === 'resume.pdf') return 'amber'; return n[0] === '.' ? 'dim' : ''; }
 function lsF(a) {
 var arg = a.ops[0] || '', p = arg ? rp(arg) : cwd, base = p, one = null;
 if (p === null) { PT('ls: ' + (arg || '.') + ': No such file or directory', 'err'); st = 1; return; }
@@ -429,7 +429,7 @@ if (byPath.has(p)) { var ix = p.lastIndexOf('/'); base = ix === -1 ? '' : p.slic
 else { PT('ls: ' + (arg || '.') + ': No such file or directory', 'err'); st = 1; return; }
 }
 var ents = one ? [one] : ld(p);
-if (!a.flags.a && !one) ents = ents.filter(function (n) { return n.charAt(0) !== '.'; });
+if (!a.flags.a && !one) ents = ents.filter(n => n[0] !== '.');
 if (!ents.length) { st = 0; return; }
 if (a.flags.l) {
 ents.forEach(function (n) {
@@ -469,6 +469,15 @@ if (!f) { PT('wc: ' + arg + ': No such file or directory', 'err'); st = 1; retur
 if (!f.lines) { PT('wc: ' + arg + ': binary file'); st = 1; return; }
 var s = ct(f);
 PT(f.lines.length + ' ' + s.split(/\s+/).filter(Boolean).length + ' ' + (s.length + 1) + ' ' + arg); st = 0;
+}
+function fileF(a) {
+var arg = a.ops[0];
+if (arg == null) { noi('file'); return; }
+var p = rp(arg), f = p == null ? null : byPath.get(p);
+if (p === null || (!f && !dd(p))) { PT('file: ' + arg + ': No such file or directory', 'err'); st = 1; return; }
+if (dd(p)) PT(arg + ': directory');
+else PT(arg + ': ' + (f.bin || 'ASCII text'));
+st = 0;
 }
 function echoF(a) {
 PT(a.ops.join(' ').replace(/\$(USER|HOSTNAME|PWD|\?)/g, function (m) {
@@ -539,8 +548,8 @@ await sleep(140);
 tx(tk, '--- ' + host + ' ping statistics ---');
 tx(tk, n + ' packets transmitted, ' + n + ' packets received, 0.0% packet loss');
 var mn = Math.min.apply(null, nums), mx = Math.max.apply(null, nums);
-var avg = nums.reduce(function (x, y) { return x + y; }, 0) / n;
-var sd = Math.sqrt(nums.reduce(function (x, y) { return x + (y - avg) * (y - avg); }, 0) / n);
+var avg = nums.reduce((x, y) => x + y, 0) / n;
+var sd = Math.sqrt(nums.reduce((x, y) => x + (y - avg) * (y - avg), 0) / n);
 tx(tk, 'round-trip min/avg/max/stddev = ' + mn.toFixed(3) + '/' + avg.toFixed(3) + '/' + mx.toFixed(3) + '/' + sd.toFixed(3) + ' ms');
 tx(tk, '0 bytes touched a network.', 'dim');
 st = 0;
@@ -624,7 +633,7 @@ PL({ t: l.t && inc > 1 ? l.t.replace('incident', 'incident #' + inc) : l.t, c: l
 });
 st = 1;
 }
-var hPad = Math.max(18, Math.max.apply(null, vis.map(function (c) { return (c.name + (c.args ? ' ' + c.args : '')).length; })) + 2);
+var hPad = Math.max(18, Math.max.apply(null, vis.map(c => (c.name + (c.args ? ' ' + c.args : '')).length)) + 2);
 function helpF() {
 var f = T.helpFlavor;
 PL({ t: f.header, c: 'bright' }); PT('');
@@ -654,7 +663,7 @@ var ENG = {
 clear: function () { $out.innerHTML = ''; st = 0; },
 help: helpF, man: manF, ls: lsF, cat: catF, cd: cdF,
 pwd: function () { PT(HOME + (cwd ? '/' + cwd : ''), 'dim'); st = 0; },
-head: headF, wc: wcF, echo: echoF,
+head: headF, wc: wcF, file: fileF, echo: echoF,
 whoami: function () { PT(user); st = 0; },
 uname: unameF,
 date: function () { PT(new Date().toUTCString()); st = 0; },
@@ -688,9 +697,9 @@ for (var i = 0; i < arr.length; i++) { while (!arr[i].startsWith(p)) p = p.slice
 return p;
 }
 function pool(cmd, d) {
-var o = ld(d).filter(function (n) { return n.charAt(0) !== '.'; });
-if (cmd === 'cd' || cmd === 'ls') return o.filter(function (n) { return dd(jn(d, n)); });
-if (cmd === 'cat') return o.filter(function (n) { return !dd(jn(d, n)); });
+var o = ld(d).filter(n => n[0] !== '.');
+if (cmd === 'cd' || cmd === 'ls') return o.filter(n => dd(jn(d, n)));
+if (cmd === 'cat') return o.filter(n => !dd(jn(d, n)));
 return [];
 }
 function stail(v) {
@@ -700,7 +709,7 @@ return { head: v.slice(0, i + 1), tail: v.slice(i + 1), cmd: v.slice(0, i).trim(
 }
 function gh(v) {
 var s = stail(v), src = s.head === '' ? names : pool(s.cmd, cwd);
-var m = src.filter(function (n) { return n.lastIndexOf(s.tail, 0) === 0 && n !== s.tail; });
+var m = src.filter(n => n.lastIndexOf(s.tail, 0) === 0 && n !== s.tail);
 if (!m.length) return '';
 var p = cpfx(m);
 return p.length > s.tail.length ? p.slice(s.tail.length) : '';
@@ -756,7 +765,7 @@ if (!busy) RP();
 }
 function tab() {
 var v = $kbd.value, s = stail(v), src = s.head === '' ? names : pool(s.cmd, cwd);
-var m = src.filter(function (n) { return n.lastIndexOf(s.tail, 0) === 0 && n !== s.tail; });
+var m = src.filter(n => n.lastIndexOf(s.tail, 0) === 0 && n !== s.tail);
 if (!m.length) { bell(); return; }
 if (m.length === 1) $kbd.value = s.head + m[0] + ' ';
 else {
@@ -932,8 +941,8 @@ boot();
   #term-static {
     flex: 1;
     min-height: 0;
-    /* Top clearance so the fixed exit link can never overprint content. */
-    padding-top: 2rem;
+    /* Top clearance so the fixed exit link starts clear of content. */
+    padding-top: 2.75rem;
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: #1d3a26 transparent;
@@ -953,8 +962,8 @@ boot();
   #out {
     flex: 1;
     min-height: 0;
-    /* Top clearance so the fixed exit link can never overprint content. */
-    padding-top: 2rem;
+    /* Top clearance so the fixed exit link starts clear of content. */
+    padding-top: 2.75rem;
     overflow-y: auto;
     white-space: pre-wrap;
     word-break: break-word;
@@ -1061,6 +1070,10 @@ boot();
     font-size: 0.8em;
     color: #3f6b4a;
     text-decoration: none;
+    /* A page-background chip: scrolled lines pass under the fixed link
+       without ever printing through it. */
+    background: #050705;
+    padding: 0.25rem 0.5rem;
   }
 
   a.term-exit:hover {
