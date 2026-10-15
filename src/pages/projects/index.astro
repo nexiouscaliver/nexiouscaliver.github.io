@@ -3,16 +3,25 @@ import Layout from '../../layouts/Layout.astro';
 import ProjectRow from '../../components/ProjectRow.astro';
 import { getCollection } from 'astro:content';
 import { getSite } from '../../site';
+import { showcase, contributions } from '../../data/showcase';
 
 const SITE = await getSite();
 const projects = (await getCollection('projects'))
   .filter((project) => !project.data.draft)
   .sort((a, b) => a.data.order - b.data.order);
+
+const groups = [
+  { key: 'product', label: 'Products' },
+  { key: 'tooling', label: 'Tools' },
+  { key: 'experiment', label: 'Experiments' },
+  { key: 'library', label: 'Libraries' },
+  { key: 'fork-adapted', label: 'Upstream forks' },
+] as const;
 ---
 
 <Layout
   title={`Projects | ${SITE.name}`}
-  description="Software by Shahil Kadia: VoxBar, mission-control, OmniForge, AmiScheduler, and open-source contributions to mem0, Dify, CAMEL, pyWhat, and zimfarm."
+  description="Software by Shahil Kadia: VoxBar, mission-control, OmniForge, AmiScheduler, a showcase of every public repo, and upstream contributions to pyWhat, mem0, CAMEL, Dify, and zimfarm."
 >
   <header>
     <p class="kicker">Work</p>
@@ -25,15 +34,60 @@ const projects = (await getCollection('projects'))
       ))
     }
   </ul>
-  <div class="prose">
+  {
+    groups.map((group) => (
+      <section>
+        <div class="section-head">
+          <h2>{group.label}</h2>
+          <span class="count">{showcase[group.key].length}</span>
+        </div>
+        <ul class="showcase-list">
+          {showcase[group.key].map((entry) => (
+            <li class="showcase-row">
+              <a href={entry.link}>
+                <span class="name">{entry.name}</span>
+                <span class="desc">{entry.description}</span>
+                <span class="tags">{entry.tags.join(' \u00b7 ')}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    ))
+  }
+  <section class="prose contrib">
     <h2>Open source</h2>
     <p>
-      Five merged pull requests into third-party projects, including <a
-        href="https://github.com/mem0ai/mem0">mem0</a>, <a
-        href="https://github.com/langgenius/dify">Dify</a>, <a
-        href="https://github.com/camel-ai/camel">CAMEL</a>, <a
-        href="https://github.com/bee-san/pyWhat">pyWhat</a>, and <a
-        href="https://github.com/onnela-lab/zimfarm">zimfarm</a>.
+      Pull requests to third-party repositories: five merged, seven still open.
+      Titles are verbatim; follow a link for the current state of a change.
     </p>
-  </div>
+    <h3 class="subhead">Merged upstream</h3>
+    <ul class="contrib-list">
+      {
+        contributions.merged.map((pr) => (
+          <li>
+            <a href={pr.url}>
+              <span class="repo">{pr.repo}</span>
+              <span class="what">{pr.title}</span>
+              <span class="when">{pr.when}</span>
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+    <h3 class="subhead">Open pull requests</h3>
+    <ul class="contrib-list">
+      {
+        contributions.open.map((pr) => (
+          <li>
+            <a href={pr.url}>
+              <span class="repo">{pr.repo}</span>
+              <span class="what">{pr.title}</span>
+              <span class="when">{pr.when}</span>
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </section>
 </Layout>
