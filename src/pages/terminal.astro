@@ -193,8 +193,8 @@ const GENERATED: Record<string, TermLine[]> = {
 
 const staticLines = (c: TermCommand): TermLine[] =>
   GENERATED[c.name] ??
-  (c.action === 'cat' && c.file
-    ? (fileByPath.get(c.file)?.lines ?? [])
+  (c.action === 'cat' && (c.file ?? c.example)
+    ? (fileByPath.get(c.file ?? c.example)?.lines ?? [])
     : (c.lines ?? []));
 ---
 
@@ -333,8 +333,7 @@ function ct(f) { return f.lines ? f.lines.map(ft).join('\n') : ''; }
 function bz(f) { if (!f) return 0; if (f.size != null) return f.size; if (f.payload) return f.payload.length; return f.lines ? ct(f).length + 1 : 0; }
 function rp(p) {
 p = String(p == null ? '' : p).trim();
-if (p === '~') return '';
-if (p.charAt(0) === '~') p = p.slice(1);
+if (p.charAt(0) === '~') { if (p.length === 1) return ''; p = HOME + p.slice(1); }
 if (p.charAt(0) === '/') { if (p === '/') return ''; if (p.indexOf(HOME) !== 0) return null; p = p.slice(HOME.length); }
 else if (!p) return '';
 else p = (cwd ? '/' + cwd : '') + '/' + p;
