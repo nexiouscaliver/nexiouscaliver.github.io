@@ -1,29 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 440 50" width="440" height="50" role="img" aria-label="typing tagline">
-  <rect width="440" height="50" rx="8" fill="#121412" fill-opacity="0.6"/>
-  <path id="p1" fill="none" d="m128.8,22 h196">
-    <animate attributeName="d" dur="8s" repeatCount="indefinite" values="m128.8,22 h0; m128.8,22 h196; m128.8,22 h196" keyTimes="0;0.175;1"/>
-  </path>
-  <path id="p2" fill="none" d="m13.6,44 h428">
-    <animate attributeName="d" dur="8s" repeatCount="indefinite" values="m13.6,44 h0; m13.6,44 h0; m13.6,44 h428; m13.6,44 h428" keyTimes="0;0.3;0.688;1"/>
-  </path>
-  <text font-family="ui-monospace, Menlo, monospace" font-size="16" fill="#e0a458">
-    <textPath href="#p1" xlink:href="#p1">AI System Architect</textPath>
-  </text>
-  <text font-family="ui-monospace, Menlo, monospace" font-size="16" fill="#e0a458">
-    <textPath href="#p2" xlink:href="#p2">privacy-first tools and multi-agent systems</textPath>
-  </text>
-  <g>
-    <animate attributeName="opacity" dur="8s" repeatCount="indefinite" calcMode="discrete" values="1;0" keyTimes="0;0.3"/>
-    <rect x="311" y="8" width="9" height="18" fill="#e0a458">
-      <animate attributeName="x" dur="8s" repeatCount="indefinite" values="128.8;311.2;311.2" keyTimes="0;0.175;1"/>
-      <animate attributeName="opacity" dur="0.9s" repeatCount="indefinite" calcMode="discrete" values="1;0" keyTimes="0;0.5"/>
-    </rect>
-  </g>
-  <g opacity="0">
-    <animate attributeName="opacity" dur="8s" repeatCount="indefinite" calcMode="discrete" values="0;1" keyTimes="0;0.3"/>
-    <rect x="426" y="30" width="9" height="18" fill="#e0a458">
-      <animate attributeName="x" dur="8s" repeatCount="indefinite" values="13.6;13.6;426.4;426.4" keyTimes="0;0.3;0.688;1"/>
-      <animate attributeName="opacity" dur="0.9s" repeatCount="indefinite" calcMode="discrete" values="1;0" keyTimes="0;0.5"/>
-    </rect>
-  </g>
+<style>@font-face{font-family:NSMT;src:url(data:font/woff2;base64,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) format('woff2')}</style>
+<rect width="440" height="50" rx="8" fill="#121412" fill-opacity="0.6"/>
+<path id="p1" fill="none" d="m129,22 h188"><animate attributeName="d" dur="8s" repeatCount="indefinite" values="m129,22 h0; m129,22 h188; m129,22 h188" keyTimes="0;0.175;1"/></path>
+<path id="p2" fill="none" d="m14,44 h418"><animate attributeName="d" dur="8s" repeatCount="indefinite" values="m14,44 h0; m14,44 h0; m14,44 h418; m14,44 h418" keyTimes="0;0.3;0.688;1"/></path>
+<text font-family="NSMT, ui-monospace, Menlo, monospace" font-size="16" fill="#e0a458"><textPath href="#p1" xlink:href="#p1">AI System Architect</textPath></text>
+<text font-family="NSMT, ui-monospace, Menlo, monospace" font-size="16" fill="#e0a458"><textPath href="#p2" xlink:href="#p2">privacy-first tools and multi-agent systems</textPath></text>
+<g><animate attributeName="opacity" dur="8s" repeatCount="indefinite" calcMode="discrete" values="1;0" keyTimes="0;0.3"/><rect x="311" y="8" width="9.6" height="18" fill="#e0a458"><animate attributeName="x" dur="8s" repeatCount="indefinite" values="129;311.4;311.4" keyTimes="0;0.175;1"/><animate attributeName="opacity" dur="0.9s" repeatCount="indefinite" calcMode="discrete" values="1;0" keyTimes="0;0.5"/></rect></g>
+<g opacity="0"><animate attributeName="opacity" dur="8s" repeatCount="indefinite" calcMode="discrete" values="0;1" keyTimes="0;0.3"/><rect x="427" y="30" width="9.6" height="18" fill="#e0a458"><animate attributeName="x" dur="8s" repeatCount="indefinite" values="14;14;426.8;426.8" keyTimes="0;0.3;0.688;1"/><animate attributeName="opacity" dur="0.9s" repeatCount="indefinite" calcMode="discrete" values="1;0" keyTimes="0;0.5"/></rect></g>
 </svg>
