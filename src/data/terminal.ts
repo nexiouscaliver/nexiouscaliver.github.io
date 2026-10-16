@@ -25,9 +25,9 @@ export interface TermFile {
 }
 
 export type TermAction =
-  | 'clear' | 'help' | 'man' | 'ls' | 'cat' | 'cd' | 'pwd' | 'head' | 'wc'
-  | 'file' | 'echo' | 'whoami' | 'uname' | 'date' | 'history' | 'base64'
-  | 'rot13' | 'xxd' | 'sha256' | 'ping' | 'curl' | 'nmap' | 'exit'
+  | 'clear' | 'help' | 'man' | 'ls' | 'cat' | 'grep' | 'copy' | 'cd' | 'pwd'
+  | 'head' | 'wc' | 'file' | 'echo' | 'whoami' | 'uname' | 'date' | 'history'
+  | 'base64' | 'rot13' | 'xxd' | 'sha256' | 'ping' | 'curl' | 'nmap' | 'exit'
   | 'sudo' | 'su' | 'ssh' | 'gpg' | 'sqlmap' | 'hydra' | 'nikto' | 'rm' | 'touch';
 
 export interface TermCommand {
@@ -260,6 +260,14 @@ const commands: TermCommand[] = [
     example: 'about.md',
   },
   {
+    name: 'grep',
+    args: '[-i] <pattern> [file]',
+    summary: 'search files for a pattern; -i ignores case',
+    action: 'grep',
+    example: 'python ~/projects/README.md',
+    flags: ['-i: ignore case', 'no file: everything under the current directory'],
+  },
+  {
     name: 'cd',
     args: '[dir]',
     summary: 'change directory (within the read-only home)',
@@ -300,6 +308,13 @@ const commands: TermCommand[] = [
     summary: 'print text, expand $USER $HOSTNAME $PWD $?',
     action: 'echo',
     example: '$USER',
+  },
+  {
+    name: 'copy',
+    args: '<file | text>',
+    summary: 'put a file or text on your clipboard, no mouse involved',
+    action: 'copy',
+    example: 'about.md',
   },
   {
     name: 'whoami',
@@ -500,13 +515,15 @@ export const TERMINAL = {
   promptUser: 'visitor',
   promptHost: 'shahilkadia',
 
+  // ANSI Shadow letterforms, composed per letter: S H A H I L. The base
+  // file's banner mangled the second H into a 4 and fused S to H.
   banner: [
-    '      ███████╗██╗  ██╗  █████╗  ██╗  ██╗██╗██╗',
-    '      ██╔════╝██║  ██║ ██╔══██╗███╗ ██║██║██║',
-    '      ███████╗███████║ ███████║╚██╗██╔╝██║██║',
-    '      ╚════██║██╔══██║██╔══██║ ╚███╔╝ ██║██║',
-    '      ███████║██║  ██║██║  ██║ ██╔██╗ ██║██║',
-    '      ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝ ╚═╝ ╚═╝╚═╝',
+    '███████╗ ██╗  ██╗  █████╗  ██╗  ██╗ ██╗ ██╗',
+    '██╔════╝ ██║  ██║ ██╔══██╗ ██║  ██║ ██║ ██║',
+    '███████╗ ███████║ ███████║ ███████║ ██║ ██║',
+    '╚════██║ ██╔══██║ ██╔══██║ ██╔══██║ ██║ ██║',
+    '███████║ ██║  ██║ ██║  ██║ ██║  ██║ ██║ ███████╗',
+    '╚══════╝ ╚═╝  ╚═╝ ╚═╝  ╚═╝ ╚═╝  ╚═╝ ╚═╝ ╚══════╝',
   ],
 
   /** Typed at boot, before the banner. */
